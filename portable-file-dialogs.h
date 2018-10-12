@@ -55,6 +55,7 @@ protected:
             flags(flag::has_matedialog) = check_program("matedialog");
             flags(flag::has_shellementary) = check_program("shellementary");
             flags(flag::has_qarma) = check_program("qarma");
+            flags(flag::has_kdialog) = check_program("kdialog");
         }
     }
 
@@ -64,9 +65,23 @@ protected:
         has_matedialog,
         has_shellementary,
         has_qarma,
+        has_kdialog,
 
         max_flag,
     };
+
+    bool is_zenity() const
+    {
+        return flags(flag::has_zenity) ||
+               flags(flag::has_matedialog) ||
+               flags(flag::has_shellementary) ||
+               flags(flag::has_qarma);
+    }
+
+    bool is_kdialog() const
+    {
+        return flags(flag::has_kdialog);
+    }
 
     // Static array of flags for internal state
     bool const &flags(flag flag) const
@@ -144,6 +159,7 @@ protected:
              : flags(flag::has_matedialog) ? "matedialog"
              : flags(flag::has_shellementary) ? "shellementary"
              : flags(flag::has_qarma) ? "qarma"
+             : flags(flag::has_kdialog) ? "kdialog"
              : "echo";
     }
 
@@ -237,13 +253,25 @@ public:
                        "\"";
         execute(command, &exit_code);
 #else
-        if (icon == icon::question) // Not supported by zenity?
+        if (icon == icon::question) // Not supported by notifications
             icon = icon::info;
 
-        auto command = helper_command()
-                     + " --notification"
-                     + " --window-icon " + get_icon_name(icon)
-                     + " --text " + shell_quote(title + "\n" + message);
+        auto command = helper_command();
+
+        if (is_zenity())
+        {
+            command += " --notification"
+                       " --window-icon " + get_icon_name(icon) +
+                       " --text " + shell_quote(title + "\n" + message);
+        }
+        else if (is_kdialog())
+        {
+            command += " --icon " + get_icon_name(icon) +
+                       " --title " + shell_quote(title) +
+                       " --passivepopup " + shell_quote(message) +
+                       " 5";
+        }
+
         execute(command, &exit_code);
 #endif
     }
@@ -283,26 +311,57 @@ public:
                                wtitle.c_str(), style);
 #else
         auto command = helper_command();
-        switch (buttons)
+
+        if (is_zenity())
         {
-            case buttons::ok_cancel:
-                command += " --question --ok-label=OK --cancel-label=Cancel"; break;
-            case buttons::yes_no:
-                command += " --question"; break;
-            case buttons::yes_no_cancel:
-                command += " --list --column '' --hide-header 'Yes' 'No'"; break;
-            default:
+            switch (buttons)
+            {
+                case buttons::ok_cancel:
+                    command += " --question --ok-label=OK --cancel-label=Cancel"; break;
+                case buttons::yes_no:
+                    command += " --question"; break;
+                case buttons::yes_no_cancel:
+                    command += " --list --column '' --hide-header 'Yes' 'No'"; break;
+                default:
+                    switch (icon)
+                    {
+                        case icon::error: command += " --error"; break;
+                        case icon::warning: command += " --warning"; break;
+                        default: command += " --info"; break;
+                    }
+            }
+
+            command += " --title " + shell_quote(title)
+                     + " --text " + shell_quote(message)
+                     + " --icon-name=dialog-" + get_icon_name(icon);
+        }
+        else if (is_kdialog())
+        {
+            if (buttons == buttons::ok)
+            {
                 switch (icon)
                 {
                     case icon::error: command += " --error"; break;
-                    case icon::warning: command += " --warning"; break;
-                    default: command += " --info"; break;
+                    case icon::warning: command += " --sorry"; break;
+                    default: command += " --msgbox"; break;
                 }
-        }
+            }
+            else
+            {
+                command += " --";
+                if (icon == icon::warning || icon == icon::error)
+                    command += "warning";
+                command += "yesno";
+                if (buttons == buttons::yes_no_cancel)
+                    command += "cancel";
+            }
 
-        command += " --title " + shell_quote(title)
-                 + " --text " + shell_quote(message)
-                 + " --icon-name=dialog-" + get_icon_name(icon);
+            command += " " + shell_quote(message)
+                     + " --title " + shell_quote(title);
+
+            if (buttons == buttons::ok_cancel)
+                command += " --yes-label OK --no-label Cancel";
+        }
 
         result = execute(command, &exit_code);
 #endif
