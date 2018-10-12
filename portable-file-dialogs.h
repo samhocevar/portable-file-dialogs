@@ -16,6 +16,10 @@
 #include <regex>
 #include <cstdio>
 
+#if _WIN32
+#include <windows.h>
+#endif
+
 namespace pfd
 {
 
@@ -41,6 +45,7 @@ class dialog
     friend class message;
 
 protected:
+#if !_WIN32
     dialog(bool resync = false)
     {
         static bool analysed = false;
@@ -69,14 +74,45 @@ protected:
         static bool flags[(size_t)flag::max_flag];
         return flags[(size_t)flag];
     }
+#endif
 
-    // Non-const getter for the static array of flags
-    bool &flags(flag flag)
+#if _WIN32
+    void execute(std::string const &command, int *exit_code = nullptr) const
     {
-        return const_cast<bool &>(static_cast<const dialog *>(this)->flags(flag));
+        STARTUPINFOW si;
+        PROCESS_INFORMATION pi;
+
+        memset(&si, 0, sizeof(si));
+        si.cb = sizeof(si);
+        si.dwFlags = STARTF_USESHOWWINDOW;
+        si.wShowWindow = SW_HIDE;
+
+        std::wstring wcommand = str2wstr(command);
+        if (!CreateProcessW(nullptr, (LPWSTR)wcommand.c_str(), nullptr, nullptr,
+                            FALSE, CREATE_NEW_CONSOLE, nullptr, nullptr, &si, &pi))
+        {
+            if (exit_code)
+                *exit_code = -1;
+            return; /* GetLastError(); */
+        }
+
+        WaitForInputIdle(pi.hProcess, INFINITE);
+        WaitForSingleObject(pi.hProcess, INFINITE);
+        CloseHandle(pi.hThread);
+        CloseHandle(pi.hProcess);
+        if (exit_code)
+            *exit_code = 0;
     }
 
-    std::string execute(std::string const &command, int *exit_code = nullptr)
+    static std::wstring str2wstr(std::string const &str)
+    {
+        int len = MultiByteToWideChar(CP_UTF8, 0, str.c_str(), -1, nullptr, 0);
+        std::wstring ret(len, '\0');
+        MultiByteToWideChar(CP_UTF8, 0, str.c_str(), -1, (LPWSTR)ret.data(), len);
+        return ret;
+    }
+#else
+    std::string execute(std::string const &command, int *exit_code = nullptr) const
     {
         auto stream = popen(command.c_str(), "r");
         if (!stream)
@@ -102,7 +138,7 @@ protected:
         return result;
     }
 
-    std::string get_helper_name() const
+    std::string helper_command() const
     {
         return flags(flag::has_zenity) ? "zenity"
              : flags(flag::has_matedialog) ? "matedialog"
@@ -111,7 +147,7 @@ protected:
              : "echo";
     }
 
-    std::string get_buttons_name(buttons buttons) const
+    std::string buttons_to_name(buttons buttons) const
     {
         switch (buttons)
         {
@@ -121,25 +157,48 @@ protected:
             case buttons::yes_no_cancel: return "yesnocancel";
         }
     }
+#endif
 
     std::string get_icon_name(icon icon) const
     {
         switch (icon)
         {
+            // Zenity wants "information" but Powershell wants "info"
+#if _WIN32
+            case icon::info: default: return "info";
+#else
             case icon::info: default: return "information";
+#endif
             case icon::warning: return "warning";
             case icon::error: return "error";
             case icon::question: return "question";
         }
     }
 
-    // Properly quote a string for the shell
-    std::string shell_quote(std::string const &s) const
+    // Properly quote a string for Powershell: replace ' or " with '' or ""
+    // FIXME: we should probably get rid of newlines!
+    // FIXME: the \" sequence seems unsafe, too!
+    std::string powershell_quote(std::string const &str) const
     {
-        return "'" + std::regex_replace(s, std::regex("'"), "'\\''") + "'";
+        return "'" + std::regex_replace(str, std::regex("['\"]"), "$&$&") + "'";
+    }
+
+    // Properly quote a string for the shell: just replace ' with '\''
+    std::string shell_quote(std::string const &str) const
+    {
+        return "'" + std::regex_replace(str, std::regex("'"), "'\\''") + "'";
     }
 
 private:
+#if _WIN32
+
+#else
+    // Non-const getter for the static array of flags
+    bool &flags(flag flag)
+    {
+        return const_cast<bool &>(static_cast<const dialog *>(this)->flags(flag));
+    }
+
     // Check whether a program is present using “which”
     bool check_program(char const *program)
     {
@@ -151,6 +210,7 @@ private:
         execute(command.c_str(), &exit_code);
         return exit_code == 0;
     }
+#endif
 };
 
 class notify : dialog
@@ -160,17 +220,34 @@ public:
            std::string const &message,
            icon icon = icon::info)
     {
-        if (icon == icon::question)
+#if _WIN32
+        int const delay = 5000;
+        auto command = "powershell.exe -Command \""
+                       "    Add-Type -AssemblyName System.Windows.Forms;"
+                       "    $exe = (Get-Process -id " + std::to_string(GetCurrentProcessId()) + ").Path;"
+                       "    $popup = New-Object System.Windows.Forms.NotifyIcon;"
+                       "    $popup.Icon = [System.Drawing.Icon]::ExtractAssociatedIcon($exe);"
+                       "    $popup.Visible = $true;"
+                       "    $popup.ShowBalloonTip(" + std::to_string(delay) + ", "
+                                                    + powershell_quote(title) + ", "
+                                                    + powershell_quote(message) + ", "
+                                                "'" + get_icon_name(icon) + "');"
+                       "    Start-Sleep -Milliseconds " + std::to_string(delay) + ";"
+                       "    $popup.Dispose();" // Ensure the icon is cleaned up, but not too soon.
+                       "\"";
+        execute(command, &exit_code);
+#else
+        if (icon == icon::question) // Not supported by zenity?
             icon = icon::info;
 
-        auto command = get_helper_name()
+        auto command = helper_command()
                      + " --notification"
                      + " --window-icon " + get_icon_name(icon)
                      + " --text " + shell_quote(title + "\n" + message);
-        result = execute(command, &exit_code);
+        execute(command, &exit_code);
+#endif
     }
 
-    std::string result;
     int exit_code = -1;
 };
 
@@ -182,7 +259,30 @@ public:
            buttons buttons = buttons::ok_cancel,
            icon icon = icon::info)
     {
-        auto command = get_helper_name();
+#if _WIN32
+        UINT style = MB_TOPMOST;
+        switch (icon)
+        {
+            case icon::info: default: style |= MB_ICONINFORMATION; break;
+            case icon::warning: style |= MB_ICONWARNING; break;
+            case icon::error: style |= MB_ICONERROR; break;
+            case icon::question: style |= MB_ICONQUESTION; break;
+        }
+
+        switch (buttons)
+        {
+            case buttons::ok: default: style |= MB_OK; break;
+            case buttons::ok_cancel: style |= MB_OKCANCEL; break;
+            case buttons::yes_no: style |= MB_YESNO; break;
+            case buttons::yes_no_cancel: style |= MB_YESNOCANCEL; break;
+        }
+
+        auto wtitle = str2wstr(title);
+        auto wmessage = str2wstr(message);
+        auto ret = MessageBoxW(GetForegroundWindow(), wmessage.c_str(),
+                               wtitle.c_str(), style);
+#else
+        auto command = helper_command();
         switch (buttons)
         {
             case buttons::ok_cancel:
@@ -205,6 +305,7 @@ public:
                  + " --icon-name=dialog-" + get_icon_name(icon);
 
         result = execute(command, &exit_code);
+#endif
     }
 
     std::string result;
