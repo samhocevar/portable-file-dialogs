@@ -86,10 +86,10 @@ protected:
     }
 
     // Static array of flags for internal state
-    bool const &flags(flag flag) const
+    bool const &flags(flag in_flag) const
     {
         static bool flags[(size_t)flag::max_flag];
-        return flags[(size_t)flag];
+        return flags[(size_t)in_flag];
     }
 
 #if _WIN32
@@ -223,9 +223,9 @@ protected:
 private:
 
     // Non-const getter for the static array of flags
-    bool &flags(flag flag)
+    bool &flags(flag in_flag)
     {
-        return const_cast<bool &>(static_cast<const dialog *>(this)->flags(flag));
+        return const_cast<bool &>(static_cast<const dialog *>(this)->flags(in_flag));
     }
 
     // Check whether a program is present using “which”
@@ -313,7 +313,7 @@ class message : dialog
 {
 public:
     message(std::string const &title,
-            std::string const &message,
+            std::string const &text,
             buttons buttons = buttons::ok_cancel,
             icon icon = icon::info)
     {
@@ -336,7 +336,7 @@ public:
         }
 
         auto wtitle = str2wstr(title);
-        auto wmessage = str2wstr(message);
+        auto wmessage = str2wstr(text);
         auto ret = MessageBoxW(GetForegroundWindow(), wmessage.c_str(),
                                wtitle.c_str(), style);
 #else
@@ -363,7 +363,7 @@ public:
 
             command += " --title " + shell_quote(title)
                      + " --width 300 --height 0" // sensible defaults
-                     + " --text " + shell_quote(message)
+                     + " --text " + shell_quote(text)
                      + " --icon-name=dialog-" + get_icon_name(icon);
         }
         else if (is_kdialog())
@@ -387,7 +387,7 @@ public:
                     command += "cancel";
             }
 
-            command += " " + shell_quote(message)
+            command += " " + shell_quote(text)
                      + " --title " + shell_quote(title);
 
             if (buttons == buttons::ok_cancel)
@@ -407,7 +407,7 @@ class file_dialog : dialog
 protected:
     enum type { open, save, folder, };
 
-    file_dialog(type type,
+    file_dialog(type in_type,
                 std::string const &title,
                 std::string const &default_path = "",
                 std::string const &filter = "",
@@ -438,7 +438,7 @@ protected:
         }
         ofn.lpstrTitle = wtitle.c_str();
         ofn.Flags = OFN_NOCHANGEDIR;
-        if (type == type::open)
+        if (in_type == type::open)
         {
             ofn.Flags |= OFN_PATHMUSTEXIST;
             exit_code = GetOpenFileNameW(&ofn);
@@ -460,6 +460,8 @@ protected:
                      + " --title " + shell_quote(title)
                      + " --file-filter=" + shell_quote(filter)
                      + (multiselect ? " --multiple" : "");
+            if (in_type == type::save)
+                command += " --save";
         }
 
         result = execute(command, &exit_code);
