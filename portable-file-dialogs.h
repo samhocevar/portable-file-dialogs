@@ -129,6 +129,14 @@ protected:
         MultiByteToWideChar(CP_UTF8, 0, str.c_str(), -1, (LPWSTR)ret.data(), len);
         return ret;
     }
+
+    static std::string wstr2str(std::wstring const &str)
+    {
+        int len = WideCharToMultiByte(CP_UTF8, 0, str.c_str(), -1, nullptr, 0, nullptr, nullptr);
+        std::string ret(len, '\0');
+        WideCharToMultiByte(CP_UTF8, 0, str.c_str(), -1, (LPSTR)ret.data(), len, nullptr, nullptr);
+        return ret;
+    }
 #endif
 
 #if !_WIN32
@@ -397,13 +405,52 @@ public:
 class file_dialog : dialog
 {
 protected:
-    file_dialog(std::string const &title,
+    enum type { open, save, folder, };
+
+    file_dialog(type type,
+                std::string const &title,
                 std::string const &default_path = "",
                 std::string const &filter = "",
                 bool multiselect = false)
     {
 #if _WIN32
-        // TODO
+        auto wresult = std::wstring(MAX_PATH, L'\0');
+        auto wtitle = str2wstr(title);
+
+        OPENFILENAMEW ofn;
+        memset(&ofn, 0, sizeof(ofn));
+        ofn.lStructSize = sizeof(OPENFILENAMEW);
+        ofn.hwndOwner = GetForegroundWindow();
+        if (!filter.empty())
+        {
+            auto wfilter = str2wstr(filter);
+            ofn.lpstrFilter = wfilter.c_str();
+            ofn.nFilterIndex = 1;
+        }
+        ofn.lpstrFile = (LPWSTR)wresult.data();
+        ofn.nMaxFile = MAX_PATH;
+        if (!default_path.empty())
+        {
+            auto wdefault_path = str2wstr(default_path);
+            ofn.lpstrFileTitle = (LPWSTR)wdefault_path.data();
+            ofn.nMaxFileTitle = MAX_PATH;
+            ofn.lpstrInitialDir = wdefault_path.c_str();
+        }
+        ofn.lpstrTitle = wtitle.c_str();
+        ofn.Flags = OFN_NOCHANGEDIR;
+        if (type == type::open)
+        {
+            ofn.Flags |= OFN_PATHMUSTEXIST;
+            exit_code = GetOpenFileNameW(&ofn);
+        }
+        else
+        {
+            ofn.Flags |= OFN_OVERWRITEPROMPT;
+            exit_code = GetSaveFileNameW(&ofn);
+        }
+
+        wresult.resize(wcslen(wresult.c_str()));
+        result = wstr2str(wresult);
 #else
         auto command = helper_command();
 
@@ -431,7 +478,7 @@ public:
               std::string const &default_path = "",
               std::string const &filter = "",
               bool multiselect = false)
-      : file_dialog(title, default_path, filter, multiselect)
+      : file_dialog(type::open, title, default_path, filter, multiselect)
     {
     }
 };
@@ -442,7 +489,7 @@ public:
     save_file(std::string const &title,
               std::string const &default_path = "",
               std::string const &filter = "")
-      : file_dialog(title, default_path, filter)
+      : file_dialog(type::save, title, default_path, filter)
     {
     }
 };
@@ -452,7 +499,7 @@ class select_folder : file_dialog
 public:
     select_folder(std::string const &title,
                   std::string const &default_path = "")
-      : file_dialog(title, default_path)
+      : file_dialog(type::folder, title, default_path)
     {
     }
 };
