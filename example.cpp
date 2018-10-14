@@ -14,15 +14,23 @@
 
 int main()
 {
-    /* Notification */
-    pfd::notify("Important notification",
+    // Set verbosity to true
+    pfd::settings::verbose(true);
+
+    // Notification
+    pfd::notify("Important Notification",
                  "This is a notification, pay attention to it!",
                  pfd::icon::question);
 
-    /* Message box */
-    pfd::message("Personal message",
-                 "You are a wonderful person, don’t let anyone let you think otherwise.",
+    // Message box
+    pfd::message("Personal Message",
+                 "You are an amazing person, don’t let anyone make you think otherwise.",
                  pfd::buttons::ok_cancel,
                  pfd::icon::question);
+
+    // File open
+    pfd::open_file("Choose a file",
+                   "/tmp/",
+                   "Text Files Only | *.txt *.text", true);
 }
 

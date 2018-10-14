@@ -13,6 +13,7 @@
 #pragma once
 
 #include <string>
+#include <iostream>
 #include <regex>
 #include <cstdio>
 
@@ -41,29 +42,31 @@ enum class icon
 
 class dialog
 {
+    friend class settings;
     friend class notify;
     friend class message;
 
 protected:
-#if !_WIN32
     dialog(bool resync = false)
     {
         static bool analysed = false;
         if (resync || !analysed)
         {
+#if !_WIN32
             flags(flag::has_zenity) = check_program("zenity");
             flags(flag::has_matedialog) = check_program("matedialog");
-            flags(flag::has_shellementary) = check_program("shellementary");
             flags(flag::has_qarma) = check_program("qarma");
             flags(flag::has_kdialog) = check_program("kdialog");
+#endif
+            analysed = true;
         }
     }
 
     enum class flag
     {
-        has_zenity = 0,
+        is_verbose = 0,
+        has_zenity,
         has_matedialog,
-        has_shellementary,
         has_qarma,
         has_kdialog,
 
@@ -74,7 +77,6 @@ protected:
     {
         return flags(flag::has_zenity) ||
                flags(flag::has_matedialog) ||
-               flags(flag::has_shellementary) ||
                flags(flag::has_qarma);
     }
 
@@ -89,7 +91,6 @@ protected:
         static bool flags[(size_t)flag::max_flag];
         return flags[(size_t)flag];
     }
-#endif
 
 #if _WIN32
     void execute(std::string const &command, int *exit_code = nullptr) const
@@ -118,7 +119,9 @@ protected:
         if (exit_code)
             *exit_code = 0;
     }
+#endif
 
+#if _WIN32
     static std::wstring str2wstr(std::string const &str)
     {
         int len = MultiByteToWideChar(CP_UTF8, 0, str.c_str(), -1, nullptr, 0);
@@ -126,9 +129,14 @@ protected:
         MultiByteToWideChar(CP_UTF8, 0, str.c_str(), -1, (LPWSTR)ret.data(), len);
         return ret;
     }
-#else
+#endif
+
+#if !_WIN32
     std::string execute(std::string const &command, int *exit_code = nullptr) const
     {
+        if (flags(flag::is_verbose))
+            std::cerr << "pfd: " << command << std::endl;
+
         auto stream = popen(command.c_str(), "r");
         if (!stream)
         {
@@ -152,12 +160,12 @@ protected:
 
         return result;
     }
+#endif
 
     std::string helper_command() const
     {
         return flags(flag::has_zenity) ? "zenity"
              : flags(flag::has_matedialog) ? "matedialog"
-             : flags(flag::has_shellementary) ? "shellementary"
              : flags(flag::has_qarma) ? "qarma"
              : flags(flag::has_kdialog) ? "kdialog"
              : "echo";
@@ -173,7 +181,6 @@ protected:
             case buttons::yes_no_cancel: return "yesnocancel";
         }
     }
-#endif
 
     std::string get_icon_name(icon icon) const
     {
@@ -206,9 +213,7 @@ protected:
     }
 
 private:
-#if _WIN32
 
-#else
     // Non-const getter for the static array of flags
     bool &flags(flag flag)
     {
@@ -218,6 +223,9 @@ private:
     // Check whether a program is present using “which”
     bool check_program(char const *program)
     {
+#if _WIN32
+        return false;
+#else
         std::string command = "which ";
         command += program;
         command += " 2>/dev/null";
@@ -225,8 +233,22 @@ private:
         int exit_code = -1;
         execute(command.c_str(), &exit_code);
         return exit_code == 0;
-    }
 #endif
+    }
+};
+
+class settings
+{
+public:
+    static void verbose(bool value)
+    {
+        dialog().flags(dialog::flag::is_verbose) = value;
+    }
+
+    static void rescan()
+    {
+        dialog(true);
+    }
 };
 
 class notify : dialog
@@ -283,9 +305,9 @@ class message : dialog
 {
 public:
     message(std::string const &title,
-           std::string const &message,
-           buttons buttons = buttons::ok_cancel,
-           icon icon = icon::info)
+            std::string const &message,
+            buttons buttons = buttons::ok_cancel,
+            icon icon = icon::info)
     {
 #if _WIN32
         UINT style = MB_TOPMOST;
@@ -332,6 +354,7 @@ public:
             }
 
             command += " --title " + shell_quote(title)
+                     + " --width 300 --height 0" // sensible defaults
                      + " --text " + shell_quote(message)
                      + " --icon-name=dialog-" + get_icon_name(icon);
         }
@@ -369,6 +392,69 @@ public:
 
     std::string result;
     int exit_code = -1;
+};
+
+class file_dialog : dialog
+{
+protected:
+    file_dialog(std::string const &title,
+                std::string const &default_path = "",
+                std::string const &filter = "",
+                bool multiselect = false)
+    {
+#if _WIN32
+        // TODO
+#else
+        auto command = helper_command();
+
+        if (is_zenity())
+        {
+            command += " --file-selection --filename=" + shell_quote(default_path)
+                     + " --title " + shell_quote(title)
+                     + " --file-filter=" + shell_quote(filter)
+                     + (multiselect ? " --multiple" : "");
+        }
+
+        result = execute(command, &exit_code);
+#endif
+    }
+
+public:
+    std::string result;
+    int exit_code = -1;
+};
+
+class open_file : file_dialog
+{
+public:
+    open_file(std::string const &title,
+              std::string const &default_path = "",
+              std::string const &filter = "",
+              bool multiselect = false)
+      : file_dialog(title, default_path, filter, multiselect)
+    {
+    }
+};
+
+class save_file : file_dialog
+{
+public:
+    save_file(std::string const &title,
+              std::string const &default_path = "",
+              std::string const &filter = "")
+      : file_dialog(title, default_path, filter)
+    {
+    }
+};
+
+class select_folder : file_dialog
+{
+public:
+    select_folder(std::string const &title,
+                  std::string const &default_path = "")
+      : file_dialog(title, default_path)
+    {
+    }
 };
 
 } // namespace pfd
