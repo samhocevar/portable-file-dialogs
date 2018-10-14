@@ -258,6 +258,9 @@ public:
            std::string const &message,
            icon icon = icon::info)
     {
+        if (icon == icon::question) // Not supported by notifications
+            icon = icon::info;
+
 #if _WIN32
         int const delay = 5000;
         auto command = "powershell.exe -Command \""
@@ -275,9 +278,6 @@ public:
                        "\"";
         execute(command, &exit_code);
 #else
-        if (icon == icon::question) // Not supported by notifications
-            icon = icon::info;
-
         auto command = helper_command();
 
         if (is_zenity())

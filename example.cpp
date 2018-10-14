@@ -19,14 +19,14 @@ int main()
 
     // Notification
     pfd::notify("Important Notification",
-                 "This is a notification, pay attention to it!",
-                 pfd::icon::question);
+                "This is a notification, pay attention to it!",
+                pfd::icon::info);
 
     // Message box
     pfd::message("Personal Message",
                  "You are an amazing person, don’t let anyone make you think otherwise.",
                  pfd::buttons::ok_cancel,
-                 pfd::icon::question);
+                 pfd::icon::warning);
 
     // File open
     pfd::open_file("Choose a file",
