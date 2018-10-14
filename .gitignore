@@ -1,1 +1,5 @@
 example
+
+Debug
+Release
+*.vcxproj.user
