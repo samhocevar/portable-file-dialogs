@@ -19,6 +19,9 @@
 
 #if _WIN32
 #include <windows.h>
+#else
+#include <fcntl.h>  // for fcntl()
+#include <unistd.h> // for read()
 #endif
 
 namespace pfd
@@ -140,33 +143,53 @@ protected:
 #endif
 
 #if !_WIN32
-    std::string execute(std::string const &command, int *exit_code = nullptr) const
+    std::string execute(std::string const &command, int *exit_code = nullptr)
+    {
+        start_execute(command);
+        return end_execute(exit_code);
+    }
+
+    void start_execute(std::string const &command)
     {
         if (flags(flag::is_verbose))
             std::cerr << "pfd: " << command << std::endl;
 
-        auto stream = popen(command.c_str(), "r");
-        if (!stream)
+        exec_stream = popen(command.c_str(), "r");
+        if (!exec_stream)
+            return;
+
+        exec_fd = fileno(exec_stream);
+        fcntl(exec_fd, F_SETFL, O_NONBLOCK);
+    }
+
+    std::string end_execute(int *exit_code = nullptr)
+    {
+        if (!exec_stream)
         {
             if (exit_code)
                 *exit_code = -1;
             return "";
         }
 
-        std::string result;
-        while (!feof(stream))
+        for (;;)
         {
             char buf[BUFSIZ];
-            fgets(buf, BUFSIZ, stream);
-            result += buf;
+            ssize_t received = read(exec_fd, buf, BUFSIZ - 1);
+            if (received == -1 && errno == EAGAIN)
+                continue;
+            else if (received == 0)
+                break;
+            buf[received + 1] = '\0';
+            exec_result += buf;
         }
 
         if (exit_code)
-            *exit_code = pclose(stream);
+            *exit_code = pclose(exec_stream);
         else
-            pclose(stream);
+            pclose(exec_stream);
+        exec_stream = nullptr;
 
-        return result;
+        return exec_result;
     }
 #endif
 
@@ -222,7 +245,6 @@ protected:
     }
 
 private:
-
     // Non-const getter for the static array of flags
     bool &flags(flag in_flag)
     {
@@ -244,6 +266,15 @@ private:
         return exit_code == 0;
 #endif
     }
+
+    // Keep handle to executing command
+#if _WIN32
+
+#else
+    FILE *exec_stream = nullptr;
+    int exec_fd = -1;
+#endif
+    std::string exec_result;
 };
 
 class settings
