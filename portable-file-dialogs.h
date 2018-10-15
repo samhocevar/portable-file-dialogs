@@ -43,6 +43,115 @@ enum class icon
     question,
 };
 
+class executor
+{
+    friend class dialog;
+
+    executor()
+    {
+    }
+
+    executor(std::string const &command)
+    {
+        start(command);
+    }
+
+    void start(std::string const &command)
+    {
+        stop();
+        exec_result.clear();
+
+#if _WIN32
+        STARTUPINFOW si;
+
+        memset(&si, 0, sizeof(si));
+        si.cb = sizeof(si);
+        si.dwFlags = STARTF_USESHOWWINDOW;
+        si.wShowWindow = SW_HIDE;
+
+        std::wstring wcommand = str2wstr(command);
+        if (!CreateProcessW(nullptr, (LPWSTR)wcommand.c_str(), nullptr, nullptr,
+                            FALSE, CREATE_NEW_CONSOLE, nullptr, nullptr, &si, &exec_pi))
+        {
+            exec_pi.hProcess = 0;
+            return; /* TODO: GetLastError()? */
+        }
+#else
+        exec_stream = popen(command.c_str(), "r");
+        if (!exec_stream)
+            return;
+
+        exec_fd = fileno(exec_stream);
+        fcntl(exec_fd, F_SETFL, O_NONBLOCK);
+#endif
+    }
+
+    bool ready()
+    {
+        if (is_ready)
+            return true;
+
+#if _WIN32
+        if (exec_pi.hProcess != 0)
+        {
+            WaitForInputIdle(exec_pi.hProcess, INFINITE);
+            WaitForSingleObject(exec_pi.hProcess, INFINITE);
+            CloseHandle(exec_pi.hThread);
+            CloseHandle(exec_pi.hProcess);
+        }
+#else
+        if (exec_stream)
+        {
+            char buf[BUFSIZ];
+            ssize_t received = read(exec_fd, buf, BUFSIZ - 1);
+            if (received == -1 && errno == EAGAIN)
+                return false;
+            if (received > 0)
+            {
+                buf[received] = '\0';
+                exec_result += buf;
+                return false;
+            }
+        }
+#endif
+        return is_ready = true;
+    }
+
+    std::string result(int *exit_code = nullptr)
+    {
+        int ret = stop();
+        if (exit_code)
+            *exit_code = ret;
+        return exec_result;
+    }
+
+    int stop()
+    {
+        while (!ready())
+            ; // TODO: spinlock?
+#if _WIN32
+        return exec_pi.hProcess == 0 ? -1 : 0;
+#else
+        return exec_stream ? pclose(exec_stream) : -1;
+#endif
+    }
+
+    ~executor()
+    {
+        stop();
+    }
+
+private:
+    bool is_ready = false;
+    std::string exec_result;
+#if _WIN32
+    PROCESS_INFORMATION exec_pi;
+#else
+    FILE *exec_stream = nullptr;
+    int exec_fd = -1;
+#endif
+};
+
 class dialog
 {
     friend class settings;
@@ -96,35 +205,6 @@ protected:
     }
 
 #if _WIN32
-    void execute(std::string const &command, int *exit_code = nullptr) const
-    {
-        STARTUPINFOW si;
-        PROCESS_INFORMATION pi;
-
-        memset(&si, 0, sizeof(si));
-        si.cb = sizeof(si);
-        si.dwFlags = STARTF_USESHOWWINDOW;
-        si.wShowWindow = SW_HIDE;
-
-        std::wstring wcommand = str2wstr(command);
-        if (!CreateProcessW(nullptr, (LPWSTR)wcommand.c_str(), nullptr, nullptr,
-                            FALSE, CREATE_NEW_CONSOLE, nullptr, nullptr, &si, &pi))
-        {
-            if (exit_code)
-                *exit_code = -1;
-            return; /* GetLastError(); */
-        }
-
-        WaitForInputIdle(pi.hProcess, INFINITE);
-        WaitForSingleObject(pi.hProcess, INFINITE);
-        CloseHandle(pi.hThread);
-        CloseHandle(pi.hProcess);
-        if (exit_code)
-            *exit_code = 0;
-    }
-#endif
-
-#if _WIN32
     static std::wstring str2wstr(std::string const &str)
     {
         int len = MultiByteToWideChar(CP_UTF8, 0, str.c_str(), -1, nullptr, 0);
@@ -142,58 +222,15 @@ protected:
     }
 #endif
 
-#if !_WIN32
     std::string execute(std::string const &command, int *exit_code = nullptr)
-    {
-        start_execute(command);
-        return end_execute(exit_code);
-    }
-
-    void start_execute(std::string const &command)
     {
         if (flags(flag::is_verbose))
             std::cerr << "pfd: " << command << std::endl;
 
-        exec_stream = popen(command.c_str(), "r");
-        if (!exec_stream)
-            return;
-
-        exec_fd = fileno(exec_stream);
-        fcntl(exec_fd, F_SETFL, O_NONBLOCK);
+        return executor(command).result(exit_code);
     }
 
-    std::string end_execute(int *exit_code = nullptr)
-    {
-        if (!exec_stream)
-        {
-            if (exit_code)
-                *exit_code = -1;
-            return "";
-        }
-
-        for (;;)
-        {
-            char buf[BUFSIZ];
-            ssize_t received = read(exec_fd, buf, BUFSIZ - 1);
-            if (received == -1 && errno == EAGAIN)
-                continue;
-            else if (received == 0)
-                break;
-            buf[received + 1] = '\0';
-            exec_result += buf;
-        }
-
-        if (exit_code)
-            *exit_code = pclose(exec_stream);
-        else
-            pclose(exec_stream);
-        exec_stream = nullptr;
-
-        return exec_result;
-    }
-#endif
-
-    std::string helper_command() const
+    std::string desktop_helper() const
     {
         return flags(flag::has_zenity) ? "zenity"
              : flags(flag::has_matedialog) ? "matedialog"
@@ -268,12 +305,6 @@ private:
     }
 
     // Keep handle to executing command
-#if _WIN32
-
-#else
-    FILE *exec_stream = nullptr;
-    int exec_fd = -1;
-#endif
     std::string exec_result;
 };
 
@@ -318,7 +349,7 @@ public:
                        "\"";
         execute(command, &exit_code);
 #else
-        auto command = helper_command();
+        auto command = desktop_helper();
 
         if (is_zenity())
         {
@@ -372,7 +403,7 @@ public:
         auto ret = MessageBoxW(GetForegroundWindow(), wmessage.c_str(),
                                wtitle.c_str(), style);
 #else
-        auto command = helper_command();
+        auto command = desktop_helper();
 
         if (is_zenity())
         {
@@ -484,7 +515,7 @@ protected:
         wresult.resize(wcslen(wresult.c_str()));
         result = wstr2str(wresult);
 #else
-        auto command = helper_command();
+        auto command = desktop_helper();
 
         if (is_zenity())
         {
