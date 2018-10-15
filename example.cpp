@@ -12,6 +12,8 @@
 
 #include "portable-file-dialogs.h"
 
+#include <iostream>
+
 int main()
 {
     // Set verbosity to true
@@ -22,11 +24,13 @@ int main()
                 "This is a notification, pay attention to it!",
                 pfd::icon::info);
 
-    // Message box
-    pfd::message("Personal Message",
-                 "You are an amazing person, don’t let anyone make you think otherwise.",
-                 pfd::buttons::ok_cancel,
-                 pfd::icon::warning);
+    // Message box with busy loop
+    auto m = pfd::message("Personal Message",
+                          "You are an amazing person, don’t let anyone make you think otherwise.",
+                          pfd::buttons::ok_cancel,
+                          pfd::icon::warning);
+    while (!m.ready(1000))
+        std::cout << "Waited 1 second for user input" << std::endl;
 
     // File open
     pfd::open_file("Choose a file",

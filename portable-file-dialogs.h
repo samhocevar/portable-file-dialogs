@@ -13,6 +13,7 @@
 #pragma once
 
 #include <string>
+#include <memory>
 #include <iostream>
 #include <regex>
 #include <thread>
@@ -49,6 +50,9 @@ enum class icon
     question,
 };
 
+// Process wait timeout, in milliseconds
+static int const default_wait_timeout = 200;
+
 // Internal classes, not to be used by client applications
 namespace internal
 {
@@ -82,13 +86,13 @@ public:
         stop();
         if (exit_code)
             *exit_code = m_exit_code;
-        return m_result;
+        return m_stdout;
     }
 
     void start(std::string const &command)
     {
         stop();
-        m_result.clear();
+        m_stdout.clear();
         m_exit_code = -1;
 
 #if _WIN32
@@ -111,60 +115,7 @@ public:
         m_fd = fileno(m_stream);
         fcntl(m_fd, F_SETFL, O_NONBLOCK);
 #endif
-        m_state = state::running;
-    }
-
-protected:
-    executor() = default;
-
-    // Start a command asynchronously
-    executor(std::string const &command)
-    {
-        start(command);
-    }
-
-    bool ready()
-    {
-        if (m_state != state::running)
-            return true;
-
-#if _WIN32
-        if (WaitForSingleObject(m_pi.hProcess, 200) == WAIT_TIMEOUT)
-            return false;
-#else
-        char buf[BUFSIZ];
-        ssize_t received = read(m_fd, buf, BUFSIZ - 1);
-        if (received == -1 && errno == EAGAIN)
-            return false;
-        if (received > 0)
-        {
-            buf[received] = '\0';
-            m_result += buf;
-            return false;
-        }
-#endif
-        m_state = state::finished;
-        return true;
-    }
-
-    void stop()
-    {
-        if (m_state == state::idle)
-            return;
-
-        while (!ready())
-            std::this_thread::sleep_for(std::chrono::milliseconds(200));
-
-#if _WIN32
-        DWORD exit_code;
-        GetExitCodeProcess(m_pi.hProcess, &exit_code);
-        m_exit_code = (int)exit_code;
-        CloseHandle(m_pi.hThread);
-        CloseHandle(m_pi.hProcess);
-#else
-        m_exit_code = pclose(m_stream);
-#endif
-        m_state = state::idle;
+        m_running = true;
     }
 
     ~executor()
@@ -172,9 +123,51 @@ protected:
         stop();
     }
 
+protected:
+    bool ready(int timeout = default_wait_timeout)
+    {
+        if (!m_running)
+            return true;
+
+#if _WIN32
+        if (WaitForSingleObject(m_pi.hProcess, timeout) == WAIT_TIMEOUT)
+            return false;
+
+        DWORD exit_code;
+        GetExitCodeProcess(m_pi.hProcess, &exit_code);
+        m_exit_code = (int)exit_code;
+        CloseHandle(m_pi.hThread);
+        CloseHandle(m_pi.hProcess);
+#else
+        char buf[BUFSIZ];
+        ssize_t received = read(m_fd, buf, BUFSIZ - 1);
+        if (received == -1 && errno == EAGAIN)
+        {
+            std::this_thread::sleep_for(std::chrono::milliseconds(timeout));
+            return false;
+        }
+        if (received > 0)
+        {
+            buf[received] = '\0';
+            m_stdout += buf;
+            return false;
+        }
+        m_exit_code = pclose(m_stream);
+#endif
+
+        m_running = false;
+        return true;
+    }
+
+    void stop()
+    {
+        while (!ready())
+            ; // loop forever
+    }
+
 private:
-    enum class state { idle, running, finished } m_state = state::idle;
-    std::string m_result;
+    bool m_running = false;
+    std::string m_stdout;
     int m_exit_code = -1;
 #if _WIN32
     PROCESS_INFORMATION m_pi;
@@ -191,13 +184,14 @@ class dialog
     friend class pfd::message;
 
 public:
-    bool ready()
+    bool ready(int timeout = default_wait_timeout)
     {
-        return m_async.ready();
+        return m_async->ready(timeout);
     }
 
 protected:
     explicit dialog(bool resync = false)
+      : m_async(std::make_shared<executor>())
     {
         static bool analysed = false;
         if (resync || !analysed)
@@ -247,7 +241,8 @@ protected:
         if (flags(flag::is_verbose))
             std::cerr << "pfd: " << command << std::endl;
 
-        return executor(command).result(exit_code);
+        m_async->start(command);
+        return m_async->result(exit_code);
     }
 
     std::string desktop_helper() const
@@ -322,10 +317,10 @@ private:
 
 protected:
     // Keep handle to executing command
-    executor m_async;
+    std::shared_ptr<executor> m_async;
 };
 
-class file_dialog : protected dialog
+class file_dialog : public dialog
 {
 protected:
     enum type { open, save, folder, };
@@ -373,7 +368,7 @@ protected:
         }
 
         wresult.resize(wcslen(wresult.c_str()));
-        /* m_result = */ internal::wstr2str(wresult);
+        /* m_stdout = */ internal::wstr2str(wresult);
 #else
         auto command = desktop_helper();
 
@@ -387,7 +382,7 @@ protected:
                 command += " --save";
         }
 
-        m_async.start(command);
+        m_async->start(command);
 #endif
     }
 };
@@ -408,7 +403,7 @@ public:
     }
 };
 
-class notify : protected internal::dialog
+class notify : public internal::dialog
 {
 public:
     notify(std::string const &title,
@@ -450,11 +445,11 @@ public:
                        " 5";
         }
 #endif
-        m_async.start(command);
+        m_async->start(command);
     }
 };
 
-class message : protected internal::dialog
+class message : public internal::dialog
 {
 public:
     message(std::string const &title,
@@ -539,12 +534,12 @@ public:
                 command += " --yes-label OK --no-label Cancel";
         }
 
-        m_async.start(command);
+        m_async->start(command);
 #endif
     }
 };
 
-class open_file : protected internal::file_dialog
+class open_file : public internal::file_dialog
 {
 public:
     open_file(std::string const &title,
@@ -556,7 +551,7 @@ public:
     }
 };
 
-class save_file : protected internal::file_dialog
+class save_file : public internal::file_dialog
 {
 public:
     save_file(std::string const &title,
@@ -567,7 +562,7 @@ public:
     }
 };
 
-class select_folder : protected internal::file_dialog
+class select_folder : public internal::file_dialog
 {
 public:
     select_folder(std::string const &title,
