@@ -28,6 +28,11 @@
 namespace pfd
 {
 
+// Forward declarations for our API
+class settings;
+class notify;
+class message;
+
 enum class buttons
 {
     ok = 0,
@@ -44,6 +49,28 @@ enum class icon
     question,
 };
 
+// Internal classes, not to be used by client applications
+namespace internal
+{
+
+#if _WIN32
+static inline std::wstring str2wstr(std::string const &str)
+{
+    int len = MultiByteToWideChar(CP_UTF8, 0, str.c_str(), -1, nullptr, 0);
+    std::wstring ret(len, '\0');
+    MultiByteToWideChar(CP_UTF8, 0, str.c_str(), -1, (LPWSTR)ret.data(), len);
+    return ret;
+}
+
+static inline std::string wstr2str(std::wstring const &str)
+{
+    int len = WideCharToMultiByte(CP_UTF8, 0, str.c_str(), -1, nullptr, 0, nullptr, nullptr);
+    std::string ret(len, '\0');
+    WideCharToMultiByte(CP_UTF8, 0, str.c_str(), -1, (LPSTR)ret.data(), len, nullptr, nullptr);
+    return ret;
+}
+#endif
+
 class executor
 {
     friend class dialog;
@@ -52,9 +79,9 @@ public:
     // High level function to get the result of a command
     std::string result(int *exit_code = nullptr)
     {
-        int ret = stop();
+        stop();
         if (exit_code)
-            *exit_code = ret;
+            *exit_code = m_exit_code;
         return m_result;
     }
 
@@ -62,7 +89,7 @@ public:
     {
         stop();
         m_result.clear();
-        m_state = running;
+        m_exit_code = -1;
 
 #if _WIN32
         STARTUPINFOW si;
@@ -75,25 +102,22 @@ public:
         std::wstring wcommand = str2wstr(command);
         if (!CreateProcessW(nullptr, (LPWSTR)wcommand.c_str(), nullptr, nullptr,
                             FALSE, CREATE_NEW_CONSOLE, nullptr, nullptr, &si, &m_pi))
-        {
-            m_pi.hProcess = 0;
             return; /* TODO: GetLastError()? */
-        }
         WaitForInputIdle(m_pi.hProcess, INFINITE);
 #else
         m_stream = popen(command.c_str(), "r");
         if (!m_stream)
             return;
-
         m_fd = fileno(m_stream);
         fcntl(m_fd, F_SETFL, O_NONBLOCK);
 #endif
+        m_state = state::running;
     }
 
 protected:
     executor() = default;
 
-    // Get a command
+    // Start a command asynchronously
     executor(std::string const &command)
     {
         start(command);
@@ -101,50 +125,46 @@ protected:
 
     bool ready()
     {
-        if (m_state != running)
+        if (m_state != state::running)
             return true;
 
 #if _WIN32
-        if (m_pi.hProcess != 0)
-        {
-            if (WaitForSingleObject(m_pi.hProcess, 200) == WAIT_TIMEOUT)
-                return false;
-            CloseHandle(m_pi.hThread);
-            CloseHandle(m_pi.hProcess);
-        }
+        if (WaitForSingleObject(m_pi.hProcess, 200) == WAIT_TIMEOUT)
+            return false;
 #else
-        if (m_stream)
+        char buf[BUFSIZ];
+        ssize_t received = read(m_fd, buf, BUFSIZ - 1);
+        if (received == -1 && errno == EAGAIN)
+            return false;
+        if (received > 0)
         {
-            char buf[BUFSIZ];
-            ssize_t received = read(m_fd, buf, BUFSIZ - 1);
-            if (received == -1 && errno == EAGAIN)
-                return false;
-            if (received > 0)
-            {
-                buf[received] = '\0';
-                m_result += buf;
-                return false;
-            }
+            buf[received] = '\0';
+            m_result += buf;
+            return false;
         }
 #endif
-        m_state = finished;
+        m_state = state::finished;
         return true;
     }
 
-    int stop()
+    void stop()
     {
-        if (m_state == idle)
-            return 0;
+        if (m_state == state::idle)
+            return;
 
         while (!ready())
             std::this_thread::sleep_for(std::chrono::milliseconds(200));
 
-        m_state = idle;
 #if _WIN32
-        return m_pi.hProcess == 0 ? -1 : 0;
+        DWORD exit_code;
+        GetExitCodeProcess(m_pi.hProcess, &exit_code);
+        m_exit_code = (int)exit_code;
+        CloseHandle(m_pi.hThread);
+        CloseHandle(m_pi.hProcess);
 #else
-        return m_stream ? pclose(m_stream) : -1;
+        m_exit_code = pclose(m_stream);
 #endif
+        m_state = state::idle;
     }
 
     ~executor()
@@ -153,8 +173,9 @@ protected:
     }
 
 private:
-    enum { idle, running, finished } m_state = idle;
+    enum class state { idle, running, finished } m_state = state::idle;
     std::string m_result;
+    int m_exit_code = -1;
 #if _WIN32
     PROCESS_INFORMATION m_pi;
 #else
@@ -165,9 +186,9 @@ private:
 
 class dialog
 {
-    friend class settings;
-    friend class notify;
-    friend class message;
+    friend class pfd::settings;
+    friend class pfd::notify;
+    friend class pfd::message;
 
 public:
     bool ready()
@@ -220,24 +241,6 @@ protected:
         static bool flags[(size_t)flag::max_flag];
         return flags[(size_t)in_flag];
     }
-
-#if _WIN32
-    static std::wstring str2wstr(std::string const &str)
-    {
-        int len = MultiByteToWideChar(CP_UTF8, 0, str.c_str(), -1, nullptr, 0);
-        std::wstring ret(len, '\0');
-        MultiByteToWideChar(CP_UTF8, 0, str.c_str(), -1, (LPWSTR)ret.data(), len);
-        return ret;
-    }
-
-    static std::string wstr2str(std::wstring const &str)
-    {
-        int len = WideCharToMultiByte(CP_UTF8, 0, str.c_str(), -1, nullptr, 0, nullptr, nullptr);
-        std::string ret(len, '\0');
-        WideCharToMultiByte(CP_UTF8, 0, str.c_str(), -1, (LPSTR)ret.data(), len, nullptr, nullptr);
-        return ret;
-    }
-#endif
 
     std::string execute(std::string const &command, int *exit_code = nullptr)
     {
@@ -322,21 +325,90 @@ protected:
     executor m_async;
 };
 
+class file_dialog : protected dialog
+{
+protected:
+    enum type { open, save, folder, };
+
+    file_dialog(type in_type,
+                std::string const &title,
+                std::string const &default_path = "",
+                std::string const &filter = "",
+                bool multiselect = false)
+    {
+#if _WIN32
+        auto wresult = std::wstring(MAX_PATH, L'\0');
+        auto wtitle = internal::str2wstr(title);
+
+        OPENFILENAMEW ofn;
+        memset(&ofn, 0, sizeof(ofn));
+        ofn.lStructSize = sizeof(OPENFILENAMEW);
+        ofn.hwndOwner = GetForegroundWindow();
+        if (!filter.empty())
+        {
+            auto wfilter = internal::str2wstr(filter);
+            ofn.lpstrFilter = wfilter.c_str();
+            ofn.nFilterIndex = 1;
+        }
+        ofn.lpstrFile = (LPWSTR)wresult.data();
+        ofn.nMaxFile = MAX_PATH;
+        if (!default_path.empty())
+        {
+            auto wdefault_path = internal::str2wstr(default_path);
+            ofn.lpstrFileTitle = (LPWSTR)wdefault_path.data();
+            ofn.nMaxFileTitle = MAX_PATH;
+            ofn.lpstrInitialDir = wdefault_path.c_str();
+        }
+        ofn.lpstrTitle = wtitle.c_str();
+        ofn.Flags = OFN_NOCHANGEDIR;
+        if (in_type == type::open)
+        {
+            ofn.Flags |= OFN_PATHMUSTEXIST;
+            int exit_code = GetOpenFileNameW(&ofn);
+        }
+        else
+        {
+            ofn.Flags |= OFN_OVERWRITEPROMPT;
+            int exit_code = GetSaveFileNameW(&ofn);
+        }
+
+        wresult.resize(wcslen(wresult.c_str()));
+        /* m_result = */ internal::wstr2str(wresult);
+#else
+        auto command = desktop_helper();
+
+        if (is_zenity())
+        {
+            command += " --file-selection --filename=" + shell_quote(default_path)
+                     + " --title " + shell_quote(title)
+                     + " --file-filter=" + shell_quote(filter)
+                     + (multiselect ? " --multiple" : "");
+            if (in_type == type::save)
+                command += " --save";
+        }
+
+        m_async.start(command);
+#endif
+    }
+};
+
+} // namespace internal
+
 class settings
 {
 public:
     static void verbose(bool value)
     {
-        dialog().flags(dialog::flag::is_verbose) = value;
+        internal::dialog().flags(internal::dialog::flag::is_verbose) = value;
     }
 
     static void rescan()
     {
-        dialog(true);
+        internal::dialog(true);
     }
 };
 
-class notify : protected dialog
+class notify : protected internal::dialog
 {
 public:
     notify(std::string const &title,
@@ -382,7 +454,7 @@ public:
     }
 };
 
-class message : protected dialog
+class message : protected internal::dialog
 {
 public:
     message(std::string const &title,
@@ -408,8 +480,8 @@ public:
             /* case buttons::ok: */ default: style |= MB_OK; break;
         }
 
-        auto wtitle = str2wstr(title);
-        auto wmessage = str2wstr(text);
+        auto wtitle = internal::str2wstr(title);
+        auto wmessage = internal::str2wstr(text);
         auto ret = MessageBoxW(GetForegroundWindow(), wmessage.c_str(),
                                wtitle.c_str(), style);
 #else
@@ -472,74 +544,7 @@ public:
     }
 };
 
-class file_dialog : protected dialog
-{
-protected:
-    enum type { open, save, folder, };
-
-    file_dialog(type in_type,
-                std::string const &title,
-                std::string const &default_path = "",
-                std::string const &filter = "",
-                bool multiselect = false)
-    {
-#if _WIN32
-        auto wresult = std::wstring(MAX_PATH, L'\0');
-        auto wtitle = str2wstr(title);
-
-        OPENFILENAMEW ofn;
-        memset(&ofn, 0, sizeof(ofn));
-        ofn.lStructSize = sizeof(OPENFILENAMEW);
-        ofn.hwndOwner = GetForegroundWindow();
-        if (!filter.empty())
-        {
-            auto wfilter = str2wstr(filter);
-            ofn.lpstrFilter = wfilter.c_str();
-            ofn.nFilterIndex = 1;
-        }
-        ofn.lpstrFile = (LPWSTR)wresult.data();
-        ofn.nMaxFile = MAX_PATH;
-        if (!default_path.empty())
-        {
-            auto wdefault_path = str2wstr(default_path);
-            ofn.lpstrFileTitle = (LPWSTR)wdefault_path.data();
-            ofn.nMaxFileTitle = MAX_PATH;
-            ofn.lpstrInitialDir = wdefault_path.c_str();
-        }
-        ofn.lpstrTitle = wtitle.c_str();
-        ofn.Flags = OFN_NOCHANGEDIR;
-        if (in_type == type::open)
-        {
-            ofn.Flags |= OFN_PATHMUSTEXIST;
-            exit_code = GetOpenFileNameW(&ofn);
-        }
-        else
-        {
-            ofn.Flags |= OFN_OVERWRITEPROMPT;
-            exit_code = GetSaveFileNameW(&ofn);
-        }
-
-        wresult.resize(wcslen(wresult.c_str()));
-        result = wstr2str(wresult);
-#else
-        auto command = desktop_helper();
-
-        if (is_zenity())
-        {
-            command += " --file-selection --filename=" + shell_quote(default_path)
-                     + " --title " + shell_quote(title)
-                     + " --file-filter=" + shell_quote(filter)
-                     + (multiselect ? " --multiple" : "");
-            if (in_type == type::save)
-                command += " --save";
-        }
-
-        m_async.start(command);
-#endif
-    }
-};
-
-class open_file : protected file_dialog
+class open_file : protected internal::file_dialog
 {
 public:
     open_file(std::string const &title,
@@ -551,7 +556,7 @@ public:
     }
 };
 
-class save_file : protected file_dialog
+class save_file : protected internal::file_dialog
 {
 public:
     save_file(std::string const &title,
@@ -562,7 +567,7 @@ public:
     }
 };
 
-class select_folder : protected file_dialog
+class select_folder : protected internal::file_dialog
 {
 public:
     select_folder(std::string const &title,
