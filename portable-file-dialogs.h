@@ -47,7 +47,7 @@ class dialog
     friend class message;
 
 protected:
-    dialog(bool resync = false)
+    explicit dialog(bool resync = false)
     {
         static bool analysed = false;
         if (resync || !analysed)
@@ -183,10 +183,10 @@ protected:
     {
         switch (buttons)
         {
-            case buttons::ok: default: return "ok";
             case buttons::ok_cancel: return "okcancel";
             case buttons::yes_no: return "yesno";
             case buttons::yes_no_cancel: return "yesnocancel";
+            /* case buttons::ok: */ default: return "ok";
         }
     }
 
@@ -194,15 +194,16 @@ protected:
     {
         switch (icon)
         {
-            // Zenity wants "information" but Powershell wants "info"
-#if _WIN32
-            case icon::info: default: return "info";
-#else
-            case icon::info: default: return "information";
-#endif
             case icon::warning: return "warning";
             case icon::error: return "error";
             case icon::question: return "question";
+            // Zenity wants "information" but WinForms wants "info"
+            /* case icon::info: */ default:
+#if _WIN32
+                return "info";
+#else
+                return "information";
+#endif
         }
     }
 
@@ -259,7 +260,7 @@ public:
     }
 };
 
-class notify : dialog
+class notify : protected dialog
 {
 public:
     notify(std::string const &title,
@@ -309,7 +310,7 @@ public:
     int exit_code = -1;
 };
 
-class message : dialog
+class message : protected dialog
 {
 public:
     message(std::string const &title,
@@ -321,18 +322,18 @@ public:
         UINT style = MB_TOPMOST;
         switch (icon)
         {
-            case icon::info: default: style |= MB_ICONINFORMATION; break;
             case icon::warning: style |= MB_ICONWARNING; break;
             case icon::error: style |= MB_ICONERROR; break;
             case icon::question: style |= MB_ICONQUESTION; break;
+            /* case icon::info: */ default: style |= MB_ICONINFORMATION; break;
         }
 
         switch (buttons)
         {
-            case buttons::ok: default: style |= MB_OK; break;
             case buttons::ok_cancel: style |= MB_OKCANCEL; break;
             case buttons::yes_no: style |= MB_YESNO; break;
             case buttons::yes_no_cancel: style |= MB_YESNOCANCEL; break;
+            /* case buttons::ok: */ default: style |= MB_OK; break;
         }
 
         auto wtitle = str2wstr(title);
@@ -402,7 +403,7 @@ public:
     int exit_code = -1;
 };
 
-class file_dialog : dialog
+class file_dialog : protected dialog
 {
 protected:
     enum type { open, save, folder, };
@@ -473,7 +474,7 @@ public:
     int exit_code = -1;
 };
 
-class open_file : file_dialog
+class open_file : protected file_dialog
 {
 public:
     open_file(std::string const &title,
@@ -485,7 +486,7 @@ public:
     }
 };
 
-class save_file : file_dialog
+class save_file : protected file_dialog
 {
 public:
     save_file(std::string const &title,
@@ -496,7 +497,7 @@ public:
     }
 };
 
-class select_folder : file_dialog
+class select_folder : protected file_dialog
 {
 public:
     select_folder(std::string const &title,
