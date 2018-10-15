@@ -15,7 +15,8 @@
 #include <string>
 #include <iostream>
 #include <regex>
-#include <cstdio>
+#include <thread>
+#include <chrono>
 
 #if _WIN32
 #include <windows.h>
@@ -47,19 +48,21 @@ class executor
 {
     friend class dialog;
 
-    executor()
+public:
+    // High level function to get the result of a command
+    std::string result(int *exit_code = nullptr)
     {
-    }
-
-    executor(std::string const &command)
-    {
-        start(command);
+        int ret = stop();
+        if (exit_code)
+            *exit_code = ret;
+        return m_result;
     }
 
     void start(std::string const &command)
     {
         stop();
-        exec_result.clear();
+        m_result.clear();
+        m_state = running;
 
 #if _WIN32
         STARTUPINFOW si;
@@ -71,68 +74,76 @@ class executor
 
         std::wstring wcommand = str2wstr(command);
         if (!CreateProcessW(nullptr, (LPWSTR)wcommand.c_str(), nullptr, nullptr,
-                            FALSE, CREATE_NEW_CONSOLE, nullptr, nullptr, &si, &exec_pi))
+                            FALSE, CREATE_NEW_CONSOLE, nullptr, nullptr, &si, &m_pi))
         {
-            exec_pi.hProcess = 0;
+            m_pi.hProcess = 0;
             return; /* TODO: GetLastError()? */
         }
+        WaitForInputIdle(m_pi.hProcess, INFINITE);
 #else
-        exec_stream = popen(command.c_str(), "r");
-        if (!exec_stream)
+        m_stream = popen(command.c_str(), "r");
+        if (!m_stream)
             return;
 
-        exec_fd = fileno(exec_stream);
-        fcntl(exec_fd, F_SETFL, O_NONBLOCK);
+        m_fd = fileno(m_stream);
+        fcntl(m_fd, F_SETFL, O_NONBLOCK);
 #endif
+    }
+
+protected:
+    executor() = default;
+
+    // Get a command
+    executor(std::string const &command)
+    {
+        start(command);
     }
 
     bool ready()
     {
-        if (is_ready)
+        if (m_state != running)
             return true;
 
 #if _WIN32
-        if (exec_pi.hProcess != 0)
+        if (m_pi.hProcess != 0)
         {
-            WaitForInputIdle(exec_pi.hProcess, INFINITE);
-            WaitForSingleObject(exec_pi.hProcess, INFINITE);
-            CloseHandle(exec_pi.hThread);
-            CloseHandle(exec_pi.hProcess);
+            if (WaitForSingleObject(m_pi.hProcess, 200) == WAIT_TIMEOUT)
+                return false;
+            CloseHandle(m_pi.hThread);
+            CloseHandle(m_pi.hProcess);
         }
 #else
-        if (exec_stream)
+        if (m_stream)
         {
             char buf[BUFSIZ];
-            ssize_t received = read(exec_fd, buf, BUFSIZ - 1);
+            ssize_t received = read(m_fd, buf, BUFSIZ - 1);
             if (received == -1 && errno == EAGAIN)
                 return false;
             if (received > 0)
             {
                 buf[received] = '\0';
-                exec_result += buf;
+                m_result += buf;
                 return false;
             }
         }
 #endif
-        return is_ready = true;
-    }
-
-    std::string result(int *exit_code = nullptr)
-    {
-        int ret = stop();
-        if (exit_code)
-            *exit_code = ret;
-        return exec_result;
+        m_state = finished;
+        return true;
     }
 
     int stop()
     {
+        if (m_state == idle)
+            return 0;
+
         while (!ready())
-            ; // TODO: spinlock?
+            std::this_thread::sleep_for(std::chrono::milliseconds(200));
+
+        m_state = idle;
 #if _WIN32
-        return exec_pi.hProcess == 0 ? -1 : 0;
+        return m_pi.hProcess == 0 ? -1 : 0;
 #else
-        return exec_stream ? pclose(exec_stream) : -1;
+        return m_stream ? pclose(m_stream) : -1;
 #endif
     }
 
@@ -142,13 +153,13 @@ class executor
     }
 
 private:
-    bool is_ready = false;
-    std::string exec_result;
+    enum { idle, running, finished } m_state = idle;
+    std::string m_result;
 #if _WIN32
-    PROCESS_INFORMATION exec_pi;
+    PROCESS_INFORMATION m_pi;
 #else
-    FILE *exec_stream = nullptr;
-    int exec_fd = -1;
+    FILE *m_stream = nullptr;
+    int m_fd = -1;
 #endif
 };
 
@@ -157,6 +168,12 @@ class dialog
     friend class settings;
     friend class notify;
     friend class message;
+
+public:
+    bool ready()
+    {
+        return m_async.ready();
+    }
 
 protected:
     explicit dialog(bool resync = false)
@@ -289,23 +306,20 @@ private:
     }
 
     // Check whether a program is present using “which”
-    bool check_program(char const *program)
+    bool check_program(std::string const &program)
     {
 #if _WIN32
         return false;
 #else
-        std::string command = "which ";
-        command += program;
-        command += " 2>/dev/null";
-
         int exit_code = -1;
-        execute(command.c_str(), &exit_code);
+        execute("which " + program + " 2>/dev/null", &exit_code);
         return exit_code == 0;
 #endif
     }
 
+protected:
     // Keep handle to executing command
-    std::string exec_result;
+    executor m_async;
 };
 
 class settings
@@ -347,7 +361,6 @@ public:
                        "    Start-Sleep -Milliseconds " + std::to_string(delay) + ";"
                        "    $popup.Dispose();" // Ensure the icon is cleaned up, but not too soon.
                        "\"";
-        execute(command, &exit_code);
 #else
         auto command = desktop_helper();
 
@@ -364,12 +377,9 @@ public:
                        " --passivepopup " + shell_quote(message) +
                        " 5";
         }
-
-        execute(command, &exit_code);
 #endif
+        m_async.start(command);
     }
-
-    int exit_code = -1;
 };
 
 class message : protected dialog
@@ -457,12 +467,9 @@ public:
                 command += " --yes-label OK --no-label Cancel";
         }
 
-        result = execute(command, &exit_code);
+        m_async.start(command);
 #endif
     }
-
-    std::string result;
-    int exit_code = -1;
 };
 
 class file_dialog : protected dialog
@@ -527,13 +534,9 @@ protected:
                 command += " --save";
         }
 
-        result = execute(command, &exit_code);
+        m_async.start(command);
 #endif
     }
-
-public:
-    std::string result;
-    int exit_code = -1;
 };
 
 class open_file : protected file_dialog
