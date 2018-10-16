@@ -27,10 +27,11 @@ int main()
     // Message box with busy loop
     auto m = pfd::message("Personal Message",
                           "You are an amazing person, don’t let anyone make you think otherwise.",
-                          pfd::buttons::ok_cancel,
+                          pfd::buttons::yes_no_cancel,
                           pfd::icon::warning);
     while (!m.ready(1000))
-        std::cout << "Waited 1 second for user input" << std::endl;
+        std::cout << "Waited 1 second for user input..." << std::endl;
+    std::cout << "User pressed button " << m.result() << std::endl;
 
     // File open
     pfd::open_file("Choose a file",

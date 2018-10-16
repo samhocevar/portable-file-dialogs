@@ -15,6 +15,7 @@
 #include <string>
 #include <memory>
 #include <iostream>
+#include <map>
 #include <regex>
 #include <thread>
 #include <chrono>
@@ -52,7 +53,7 @@ enum class icon
 };
 
 // Process wait timeout, in milliseconds
-static int const default_wait_timeout = 200;
+static int const default_wait_timeout = 20;
 
 // Internal classes, not to be used by client applications
 namespace internal
@@ -164,6 +165,7 @@ protected:
         ssize_t received = read(m_fd, buf, BUFSIZ - 1);
         if (received == -1 && errno == EAGAIN)
         {
+            // FIXME: this happens almost always at first iteration
             std::this_thread::sleep_for(std::chrono::milliseconds(timeout));
             return false;
         }
@@ -496,6 +498,10 @@ public:
             /* case buttons::ok: */ default: style |= MB_OK; break;
         }
 
+        m_mappings[IDCANCEL] = -1;
+        m_mappings[IDOK] = m_mappings[IDYES] = 0;
+        m_mappings[IDNO] = 1;
+
         m_async->start([text, title, style](int *exit_code) -> std::string
         {
             auto wtext = internal::str2wstr(text);
@@ -513,9 +519,11 @@ public:
                 case buttons::ok_cancel:
                     command += " --question --ok-label=OK --cancel-label=Cancel"; break;
                 case buttons::yes_no:
-                    command += " --question"; break;
+                    // Do not use standard --question because it causes “No” to return -1,
+                    // which is inconsistent with the “Yes/No/Cancel” mode below.
+                    command += " --question --switch --extra-button No --extra-button Yes"; break;
                 case buttons::yes_no_cancel:
-                    command += " --list --column '' --hide-header 'Yes' 'No'"; break;
+                    command += " --question --switch --extra-button No --extra-button Yes --extra-button Cancel"; break;
                 default:
                     switch (icon)
                     {
@@ -548,12 +556,16 @@ public:
                     command += "warning";
                 command += "yesno";
                 if (buttons == buttons::yes_no_cancel)
+                {
+                    m_mappings[256] = 1;
                     command += "cancel";
+                }
             }
 
             command += " " + shell_quote(text)
                      + " --title " + shell_quote(title);
 
+            // Must be after the above part
             if (buttons == buttons::ok_cancel)
                 command += " --yes-label OK --no-label Cancel";
         }
@@ -561,6 +573,25 @@ public:
         m_async->start(command);
 #endif
     }
+
+    int result()
+    {
+        int exit_code;
+        auto ret = m_async->result(&exit_code);
+        if (exit_code < 0 /* this means cancel */ || ret == "Cancel\n")
+            return -1;
+        if (ret == "Yes\n" || ret == "OK\n")
+            return 0;
+        if (ret == "No\n")
+            return 1;
+        if (m_mappings.count(exit_code) != 0)
+            return m_mappings[exit_code];
+        return exit_code == 0 ? 0 : -1;
+    }
+
+private:
+    // Some extra logic to map the exit code to button number
+    std::map<int, int> m_mappings;
 };
 
 class open_file : public internal::file_dialog
