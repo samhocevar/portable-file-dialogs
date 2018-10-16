@@ -21,6 +21,7 @@
 
 #if _WIN32
 #include <windows.h>
+#include <future>
 #else
 #include <fcntl.h>  // for fcntl()
 #include <unistd.h> // for read()
@@ -89,6 +90,15 @@ public:
         return m_stdout;
     }
 
+#if _WIN32
+    void start(std::function<std::string(int *)> const &fun)
+    {
+        stop();
+        m_future = std::async(fun, &m_exit_code);
+        m_running = true;
+    }
+#endif
+
     void start(std::string const &command)
     {
         stop();
@@ -130,14 +140,25 @@ protected:
             return true;
 
 #if _WIN32
-        if (WaitForSingleObject(m_pi.hProcess, timeout) == WAIT_TIMEOUT)
-            return false;
+        if (m_future.valid())
+        {
+            auto status = m_future.wait_for(std::chrono::milliseconds(timeout));
+            if (status != std::future_status::ready)
+                return false;
 
-        DWORD exit_code;
-        GetExitCodeProcess(m_pi.hProcess, &exit_code);
-        m_exit_code = (int)exit_code;
-        CloseHandle(m_pi.hThread);
-        CloseHandle(m_pi.hProcess);
+            m_stdout = m_future.get();
+        }
+        else
+        {
+            if (WaitForSingleObject(m_pi.hProcess, timeout) == WAIT_TIMEOUT)
+                return false;
+
+            DWORD ret;
+            GetExitCodeProcess(m_pi.hProcess, &ret);
+            m_exit_code = (int)ret;
+            CloseHandle(m_pi.hThread);
+            CloseHandle(m_pi.hProcess);
+        }
 #else
         char buf[BUFSIZ];
         ssize_t received = read(m_fd, buf, BUFSIZ - 1);
@@ -148,8 +169,7 @@ protected:
         }
         if (received > 0)
         {
-            buf[received] = '\0';
-            m_stdout += buf;
+            m_stdout += std::string(buf, received);
             return false;
         }
         m_exit_code = pclose(m_stream);
@@ -170,6 +190,7 @@ private:
     std::string m_stdout;
     int m_exit_code = -1;
 #if _WIN32
+    std::future<std::string> m_future;
     PROCESS_INFORMATION m_pi;
 #else
     FILE *m_stream = nullptr;
@@ -475,10 +496,13 @@ public:
             /* case buttons::ok: */ default: style |= MB_OK; break;
         }
 
-        auto wtitle = internal::str2wstr(title);
-        auto wmessage = internal::str2wstr(text);
-        auto ret = MessageBoxW(GetForegroundWindow(), wmessage.c_str(),
-                               wtitle.c_str(), style);
+        m_async->start([text, title, style](int *exit_code) -> std::string
+        {
+            auto wtext = internal::str2wstr(text);
+            auto wtitle = internal::str2wstr(title);
+            *exit_code = MessageBoxW(GetForegroundWindow(), wtext.c_str(), wtitle.c_str(), style);
+            return "";
+        });
 #else
         auto command = desktop_helper();
 
