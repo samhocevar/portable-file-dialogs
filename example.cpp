@@ -21,7 +21,7 @@ int main()
 
     // Notification
     pfd::notify("Important Notification",
-                "This is a notification, pay attention to it!",
+                "This is a message, pay attention to it!",
                 pfd::icon::info);
 
     // Message box with nice message
@@ -43,8 +43,12 @@ int main()
     }
 
     // File open
-    pfd::open_file("Choose a file",
-                   "/tmp/",
-                   "Text Files Only | *.txt *.text", true);
+    auto f = pfd::open_file("Choose files to read", "/tmp/",
+                            { "Text Files (.txt .text)", "*.txt *.text", "All Files", "*" },
+                            true);
+    std::cout << "Selected files:";
+    for (auto const &name : f.result())
+        std::cout << " " + name;
+    std::cout << "\n";
 }
 

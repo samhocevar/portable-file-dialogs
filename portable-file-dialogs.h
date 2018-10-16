@@ -363,47 +363,61 @@ protected:
     file_dialog(type in_type,
                 std::string const &title,
                 std::string const &default_path = "",
-                std::string const &filter = "",
+                std::vector<std::string> filters = {},
                 bool multiselect = false)
     {
 #if _WIN32
-        auto wresult = std::wstring(MAX_PATH, L'\0');
-        auto wtitle = internal::str2wstr(title);
-
-        OPENFILENAMEW ofn;
-        memset(&ofn, 0, sizeof(ofn));
-        ofn.lStructSize = sizeof(OPENFILENAMEW);
-        ofn.hwndOwner = GetForegroundWindow();
-        if (!filter.empty())
+        std::string filter_list;
+        std::regex whitespace("  *");
+        for (size_t i = 0; i + 1 < filters.size(); i += 2)
         {
-            auto wfilter = internal::str2wstr(filter);
-            ofn.lpstrFilter = wfilter.c_str();
-            ofn.nFilterIndex = 1;
+            filter_list += filters[i] + '\0';
+            filter_list += std::regex_replace(filters[i + 1], whitespace, ";") + '\0';
         }
-        ofn.lpstrFile = (LPWSTR)wresult.data();
-        ofn.nMaxFile = MAX_PATH;
-        if (!default_path.empty())
+        filter_list += '\0';
+
+        m_async->start([this, in_type, title, default_path, filter_list, multiselect](int *exit_code) -> std::string
         {
+            auto wtitle = internal::str2wstr(title);
+            auto wfilter_list = internal::str2wstr(filter_list);
+
+            OPENFILENAMEW ofn;
+            memset(&ofn, 0, sizeof(ofn));
+            ofn.lStructSize = sizeof(OPENFILENAMEW);
+            ofn.hwndOwner = GetForegroundWindow();
+
+            ofn.lpstrFilter = wfilter_list.c_str();
+
+            m_wresult = std::wstring(MAX_PATH * 256, L'\0');
+            ofn.lpstrFile = (LPWSTR)m_wresult.data();
+            ofn.nMaxFile = m_wresult.size();
             auto wdefault_path = internal::str2wstr(default_path);
-            ofn.lpstrFileTitle = (LPWSTR)wdefault_path.data();
-            ofn.nMaxFileTitle = MAX_PATH;
-            ofn.lpstrInitialDir = wdefault_path.c_str();
-        }
-        ofn.lpstrTitle = wtitle.c_str();
-        ofn.Flags = OFN_NOCHANGEDIR;
-        if (in_type == type::open)
-        {
-            ofn.Flags |= OFN_PATHMUSTEXIST;
-            int exit_code = GetOpenFileNameW(&ofn);
-        }
-        else
-        {
-            ofn.Flags |= OFN_OVERWRITEPROMPT;
-            int exit_code = GetSaveFileNameW(&ofn);
-        }
+            if (!wdefault_path.empty())
+            {
+                // Initial directory
+    //            ofn.lpstrInitialDir = wdefault_path.c_str();
+            // Initial file selection
+    //            ofn.lpstrFileTitle = (LPWSTR)wdefault_path.data();
+    //            ofn.nMaxFileTitle = MAX_PATH;
+    //            ofn.nMaxFileTitle = wdefault_path.size();
+            }
+            ofn.lpstrTitle = wtitle.c_str();
+            ofn.Flags = OFN_NOCHANGEDIR | OFN_EXPLORER;
+            if (in_type == type::open)
+            {
+                if (multiselect)
+                    ofn.Flags |= OFN_ALLOWMULTISELECT;
+                ofn.Flags |= OFN_PATHMUSTEXIST;
+                *exit_code = GetOpenFileNameW(&ofn);
+            }
+            else
+            {
+                ofn.Flags |= OFN_OVERWRITEPROMPT;
+                *exit_code = GetSaveFileNameW(&ofn);
+            }
 
-        wresult.resize(wcslen(wresult.c_str()));
-        /* m_stdout = */ internal::wstr2str(wresult);
+            return internal::wstr2str(m_wresult);
+        });
 #else
         auto command = desktop_helper();
 
@@ -411,8 +425,11 @@ protected:
         {
             command += " --file-selection --filename=" + shell_quote(default_path)
                      + " --title " + shell_quote(title)
-                     + " --file-filter=" + shell_quote(filter)
                      + (multiselect ? " --multiple" : "");
+
+            for (size_t i = 0; i < filters.size() / 2; ++i)
+                command += " --file-filter " + shell_quote(filters[2 * i] + "|" + filters[2 * i + 1]);
+
             if (in_type == type::save)
                 command += " --save";
         }
@@ -420,6 +437,11 @@ protected:
         m_async->start(command);
 #endif
     }
+
+private:
+#if _WIN32
+    std::wstring m_wresult;
+#endif
 };
 
 } // namespace internal
@@ -612,10 +634,17 @@ class open_file : public internal::file_dialog
 public:
     open_file(std::string const &title,
               std::string const &default_path = "",
-              std::string const &filter = "",
+              std::vector<std::string> filters = { "All Files", "*" },
               bool multiselect = false)
-      : file_dialog(type::open, title, default_path, filter, multiselect)
+      : file_dialog(type::open, title, default_path, filters, multiselect)
     {
+    }
+
+    std::vector<std::string> result()
+    {
+        int exit_code;
+        auto ret = m_async->result(&exit_code);
+        return { ret };
     }
 };
 
@@ -624,8 +653,8 @@ class save_file : public internal::file_dialog
 public:
     save_file(std::string const &title,
               std::string const &default_path = "",
-              std::string const &filter = "")
-      : file_dialog(type::save, title, default_path, filter)
+              std::vector<std::string> filters = { "All Files", "*" })
+      : file_dialog(type::save, title, default_path, filters)
     {
     }
 };
