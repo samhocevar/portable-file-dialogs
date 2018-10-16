@@ -74,17 +74,17 @@ namespace internal
 #if _WIN32
 static inline std::wstring str2wstr(std::string const &str)
 {
-    int len = MultiByteToWideChar(CP_UTF8, 0, str.c_str(), -1, nullptr, 0);
+    int len = MultiByteToWideChar(CP_UTF8, 0, str.c_str(), str.size(), nullptr, 0);
     std::wstring ret(len, '\0');
-    MultiByteToWideChar(CP_UTF8, 0, str.c_str(), -1, (LPWSTR)ret.data(), len);
+    MultiByteToWideChar(CP_UTF8, 0, str.c_str(), str.size(), (LPWSTR)ret.data(), ret.size());
     return ret;
 }
 
 static inline std::string wstr2str(std::wstring const &str)
 {
-    int len = WideCharToMultiByte(CP_UTF8, 0, str.c_str(), -1, nullptr, 0, nullptr, nullptr);
+    int len = WideCharToMultiByte(CP_UTF8, 0, str.c_str(), str.size(), nullptr, 0, nullptr, nullptr);
     std::string ret(len, '\0');
-    WideCharToMultiByte(CP_UTF8, 0, str.c_str(), -1, (LPSTR)ret.data(), len, nullptr, nullptr);
+    WideCharToMultiByte(CP_UTF8, 0, str.c_str(), str.size(), (LPSTR)ret.data(), ret.size(), nullptr, nullptr);
     return ret;
 }
 #endif
