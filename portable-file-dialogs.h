@@ -36,7 +36,15 @@ class settings;
 class notify;
 class message;
 
-enum class buttons
+enum class button
+{
+    cancel = -1,
+    ok,
+    yes = ok,
+    no,
+};
+
+enum class choice
 {
     ok = 0,
     ok_cancel,
@@ -277,14 +285,14 @@ protected:
              : "echo";
     }
 
-    std::string buttons_to_name(buttons buttons) const
+    std::string buttons_to_name(choice choice) const
     {
-        switch (buttons)
+        switch (choice)
         {
-            case buttons::ok_cancel: return "okcancel";
-            case buttons::yes_no: return "yesno";
-            case buttons::yes_no_cancel: return "yesnocancel";
-            /* case buttons::ok: */ default: return "ok";
+            case choice::ok_cancel: return "okcancel";
+            case choice::yes_no: return "yesno";
+            case choice::yes_no_cancel: return "yesnocancel";
+            /* case choice::ok: */ default: return "ok";
         }
     }
 
@@ -477,7 +485,7 @@ class message : public internal::dialog
 public:
     message(std::string const &title,
             std::string const &text,
-            buttons buttons = buttons::ok_cancel,
+            choice choice = choice::ok_cancel,
             icon icon = icon::info)
     {
 #if _WIN32
@@ -490,17 +498,18 @@ public:
             /* case icon::info: */ default: style |= MB_ICONINFORMATION; break;
         }
 
-        switch (buttons)
+        switch (choice)
         {
-            case buttons::ok_cancel: style |= MB_OKCANCEL; break;
-            case buttons::yes_no: style |= MB_YESNO; break;
-            case buttons::yes_no_cancel: style |= MB_YESNOCANCEL; break;
-            /* case buttons::ok: */ default: style |= MB_OK; break;
+            case choice::ok_cancel: style |= MB_OKCANCEL; break;
+            case choice::yes_no: style |= MB_YESNO; break;
+            case choice::yes_no_cancel: style |= MB_YESNOCANCEL; break;
+            /* case choice::ok: */ default: style |= MB_OK; break;
         }
 
-        m_mappings[IDCANCEL] = -1;
-        m_mappings[IDOK] = m_mappings[IDYES] = 0;
-        m_mappings[IDNO] = 1;
+        m_mappings[IDCANCEL] = button::cancel;
+        m_mappings[IDOK] = button::ok;
+        m_mappings[IDYES] = button::yes;
+        m_mappings[IDNO] = button::no;
 
         m_async->start([text, title, style](int *exit_code) -> std::string
         {
@@ -514,15 +523,15 @@ public:
 
         if (is_zenity())
         {
-            switch (buttons)
+            switch (choice)
             {
-                case buttons::ok_cancel:
+                case choice::ok_cancel:
                     command += " --question --ok-label=OK --cancel-label=Cancel"; break;
-                case buttons::yes_no:
+                case choice::yes_no:
                     // Do not use standard --question because it causes “No” to return -1,
                     // which is inconsistent with the “Yes/No/Cancel” mode below.
                     command += " --question --switch --extra-button No --extra-button Yes"; break;
-                case buttons::yes_no_cancel:
+                case choice::yes_no_cancel:
                     command += " --question --switch --extra-button No --extra-button Yes --extra-button Cancel"; break;
                 default:
                     switch (icon)
@@ -540,7 +549,7 @@ public:
         }
         else if (is_kdialog())
         {
-            if (buttons == buttons::ok)
+            if (choice == choice::ok)
             {
                 switch (icon)
                 {
@@ -555,9 +564,9 @@ public:
                 if (icon == icon::warning || icon == icon::error)
                     command += "warning";
                 command += "yesno";
-                if (buttons == buttons::yes_no_cancel)
+                if (choice == choice::yes_no_cancel)
                 {
-                    m_mappings[256] = 1;
+                    m_mappings[256] = button::no;
                     command += "cancel";
                 }
             }
@@ -566,7 +575,7 @@ public:
                      + " --title " + shell_quote(title);
 
             // Must be after the above part
-            if (buttons == buttons::ok_cancel)
+            if (choice == choice::ok_cancel)
                 command += " --yes-label OK --no-label Cancel";
         }
 
@@ -574,24 +583,24 @@ public:
 #endif
     }
 
-    int result()
+    button result()
     {
         int exit_code;
         auto ret = m_async->result(&exit_code);
         if (exit_code < 0 /* this means cancel */ || ret == "Cancel\n")
-            return -1;
+            return button::cancel;
         if (ret == "Yes\n" || ret == "OK\n")
-            return 0;
+            return button::ok;
         if (ret == "No\n")
-            return 1;
+            return button::no;
         if (m_mappings.count(exit_code) != 0)
             return m_mappings[exit_code];
-        return exit_code == 0 ? 0 : -1;
+        return exit_code == 0 ? button::ok : button::cancel;
     }
 
 private:
     // Some extra logic to map the exit code to button number
-    std::map<int, int> m_mappings;
+    std::map<int, button> m_mappings;
 };
 
 class open_file : public internal::file_dialog

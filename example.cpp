@@ -24,14 +24,23 @@ int main()
                 "This is a notification, pay attention to it!",
                 pfd::icon::info);
 
-    // Message box with busy loop
+    // Message box with nice message
     auto m = pfd::message("Personal Message",
                           "You are an amazing person, don’t let anyone make you think otherwise.",
-                          pfd::buttons::yes_no_cancel,
+                          pfd::choice::yes_no_cancel,
                           pfd::icon::warning);
+
+    // Optional: do something while waiting for user action
     while (!m.ready(1000))
-        std::cout << "Waited 1 second for user input..." << std::endl;
-    std::cout << "User pressed button " << m.result() << std::endl;
+        std::cout << "Waited 1 second for user input...\n";
+
+    // Do something according to the selected button
+    switch (m.result())
+    {
+        case pfd::button::yes: std::cout << "User agreed.\n"; break;
+        case pfd::button::no: std::cout << "User disagreed.\n"; break;
+        case pfd::button::cancel: std::cout << "User freaked out.\n"; break;
+    }
 
     // File open
     pfd::open_file("Choose a file",
