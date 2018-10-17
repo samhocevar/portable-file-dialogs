@@ -1,40 +1,37 @@
 # Portable File Dialogs
 
-A free C++ file dialog library.
+A free C++11 file dialog library.
 
-  * Works on Linux, Windows.
+  * works on Linux, Windows.
   * single-header
-  * asynchronous (does not block the rest of your program)
+  * asynchronous (does not block the rest of your program!)
 
 Similar to [Tiny File Dialogs](https://sourceforge.net/projects/tinyfiledialogs/) but I like it better.
 
-## Samples
+## Status
 
-Notification:
+This is still experimental and nearly not as feature-complete as
+[Tiny File Dialogs](https://sourceforge.net/projects/tinyfiledialogs/),
+but for once it seemed more constructive to start a project from scratch
+than try to fix its almost 1200 unchecked `strcat` or `strcpy` calls,
+lack of proper shell escaping, and synchronous architecture.
 
-```cpp
-pfd::notify("Important Notification",
-            "This is a message, pay attention to it!",
-            pfd::icon::info);
-```
+The currently available backends are:
 
-Asynchronous yes/no dialog:
+  * Win32 API (all known versions of Windows)
+  * GNOME desktop (using [Zenity](https://en.wikipedia.org/wiki/Zenity) or its clones Matedialog and Qarma)
+  * KDE desktop (using [KDialog](https://github.com/KDE/kdialog))
 
-```cpp
-auto m = pfd::message("Message", "Do you agree?",
-                      pfd::choice::yes_no_cancel,
-                      pfd::icon::warning);
+## Documentation
 
-// Do something while waiting for user action
-while (!m.ready(1000))
-    std::cout << "Waited 1 second for user input...\n";
+  * [Message Box API](https://github.com/samhocevar/portable-file-dialogs/issues/1)
+  * [Notification API](https://github.com/samhocevar/portable-file-dialogs/issues/2)
 
-// Do something according to the selected button
-switch (m.result())
-{
-    case pfd::button::yes: std::cout << "User agreed.\n"; break;
-    case pfd::button::no: std::cout << "User disagreed.\n"; break;
-    case pfd::button::cancel: std::cout << "User freaked out.\n"; break;
-}
-```
+## Screenshots
+
+Windows 10:
+![warning-win32](https://user-images.githubusercontent.com/245089/47136607-76919a00-d2b4-11e8-8f42-e2d62c4f9570.png)
+
+Linux (GNOME desktop):
+![warning-gnome](https://user-images.githubusercontent.com/245089/47136608-772a3080-d2b4-11e8-9e1d-60a7e743e908.png)
 
