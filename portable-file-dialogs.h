@@ -376,7 +376,8 @@ protected:
                 std::string const &title,
                 std::string const &default_path = "",
                 std::vector<std::string> filters = {},
-                bool multiselect = false)
+                bool allow_multiselect = false,
+                bool confirm_overwrite = true)
     {
 #if _WIN32
         std::string filter_list;
@@ -388,7 +389,8 @@ protected:
         }
         filter_list += '\0';
 
-        m_async->start([this, in_type, title, default_path, filter_list, multiselect](int *exit_code) -> std::string
+        m_async->start([this, in_type, title, default_path, filter_list,
+                        allow_multiselect, confirm_overwrite](int *exit_code) -> std::string
         {
             auto wtitle = internal::str2wstr(title);
             auto wfilter_list = internal::str2wstr(filter_list);
@@ -400,35 +402,58 @@ protected:
 
             ofn.lpstrFilter = wfilter_list.c_str();
 
-            m_wresult = std::wstring(MAX_PATH * 256, L'\0');
-            ofn.lpstrFile = (LPWSTR)m_wresult.data();
-            ofn.nMaxFile = m_wresult.size();
+            auto woutput = std::wstring(MAX_PATH * 256, L'\0');
+            ofn.lpstrFile = (LPWSTR)woutput.data();
+            ofn.nMaxFile = woutput.size();
             auto wdefault_path = internal::str2wstr(default_path);
             if (!wdefault_path.empty())
             {
                 // Initial directory
-    //            ofn.lpstrInitialDir = wdefault_path.c_str();
-            // Initial file selection
-    //            ofn.lpstrFileTitle = (LPWSTR)wdefault_path.data();
-    //            ofn.nMaxFileTitle = MAX_PATH;
-    //            ofn.nMaxFileTitle = wdefault_path.size();
+                ofn.lpstrInitialDir = wdefault_path.c_str();
+                // Initial file selection
+                ofn.lpstrFileTitle = (LPWSTR)wdefault_path.data();
+                ofn.nMaxFileTitle = wdefault_path.size();
             }
             ofn.lpstrTitle = wtitle.c_str();
             ofn.Flags = OFN_NOCHANGEDIR | OFN_EXPLORER;
+            int result = 0;
             if (in_type == type::open)
             {
-                if (multiselect)
+                if (allow_multiselect)
                     ofn.Flags |= OFN_ALLOWMULTISELECT;
                 ofn.Flags |= OFN_PATHMUSTEXIST;
-                *exit_code = GetOpenFileNameW(&ofn);
+                result = GetOpenFileNameW(&ofn);
             }
             else
             {
-                ofn.Flags |= OFN_OVERWRITEPROMPT;
-                *exit_code = GetSaveFileNameW(&ofn);
+                if (confirm_overwrite)
+                    ofn.Flags |= OFN_OVERWRITEPROMPT;
+                result = GetSaveFileNameW(&ofn);
             }
 
-            return internal::wstr2str(m_wresult);
+            *exit_code = result == 0 ? -1 : 0;
+
+            if (result != 0)
+            {
+                std::string prefix;
+                for (wchar_t const *p = woutput.c_str(); *p; )
+                {
+                    auto filename = internal::wstr2str(p);
+                    p += filename.size();
+                    // In multiselect mode, we advance p one step more and
+                    // check for another filename. If there is one and the
+                    // prefix is empty, it means we just read the prefix.
+                    if (allow_multiselect && *++p && prefix.empty())
+                    {
+                        prefix = filename + "/";
+                        continue;
+                    }
+
+                    m_result.push_back(prefix + filename);
+                }
+            }
+
+            return "";
         });
 #else
         auto command = desktop_helper();
@@ -437,13 +462,17 @@ protected:
         {
             command += " --file-selection --filename=" + shell_quote(default_path)
                      + " --title " + shell_quote(title)
-                     + (multiselect ? " --multiple" : "");
+                     + " --separator='\n'";
 
             for (size_t i = 0; i < filters.size() / 2; ++i)
                 command += " --file-filter " + shell_quote(filters[2 * i] + "|" + filters[2 * i + 1]);
 
             if (in_type == type::save)
                 command += " --save";
+            if (confirm_overwrite)
+                command += " --confirm-overwrite";
+            if (allow_multiselect)
+                command += " --multiple";
         }
 
         if (flags(flag::is_verbose))
@@ -453,9 +482,9 @@ protected:
 #endif
     }
 
-private:
+protected:
 #if _WIN32
-    std::wstring m_wresult;
+    std::vector<std::string> m_result;
 #endif
 };
 
@@ -643,16 +672,20 @@ public:
     open_file(std::string const &title,
               std::string const &default_path = "",
               std::vector<std::string> filters = { "All Files", "*" },
-              bool multiselect = false)
-      : file_dialog(type::open, title, default_path, filters, multiselect)
+              bool allow_multiselect = false)
+      : file_dialog(type::open, title, default_path,
+                    filters, allow_multiselect, false)
     {
     }
 
     std::vector<std::string> result()
     {
-        int exit_code;
-        auto ret = m_async->result(&exit_code);
-        return { ret };
+        m_async->result();
+#if _WIN32
+        return m_result;
+#else
+        return {};
+#endif
     }
 };
 
@@ -661,9 +694,21 @@ class save_file : public internal::file_dialog
 public:
     save_file(std::string const &title,
               std::string const &default_path = "",
-              std::vector<std::string> filters = { "All Files", "*" })
-      : file_dialog(type::save, title, default_path, filters)
+              std::vector<std::string> filters = { "All Files", "*" },
+              bool confirm_overwrite = true)
+      : file_dialog(type::save, title, default_path,
+                    filters, false, confirm_overwrite)
     {
+    }
+
+    std::vector<std::string> result()
+    {
+        m_async->result();
+#if _WIN32
+        return m_result;
+#else
+        return {};
+#endif
     }
 };
 
