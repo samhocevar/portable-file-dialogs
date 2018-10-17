@@ -417,40 +417,42 @@ protected:
             ofn.lpstrTitle = wtitle.c_str();
             ofn.Flags = OFN_NOCHANGEDIR | OFN_EXPLORER;
             int result = 0;
-            if (in_type == type::open)
-            {
-                if (allow_multiselect)
-                    ofn.Flags |= OFN_ALLOWMULTISELECT;
-                ofn.Flags |= OFN_PATHMUSTEXIST;
-                result = GetOpenFileNameW(&ofn);
-            }
-            else
+
+            if (in_type == type::save)
             {
                 if (confirm_overwrite)
                     ofn.Flags |= OFN_OVERWRITEPROMPT;
-                result = GetSaveFileNameW(&ofn);
+                if (GetSaveFileNameW(&ofn) == 0)
+                    return "";
+                return internal::wstr2str(woutput.c_str());
             }
 
-            *exit_code = result == 0 ? -1 : 0;
-
-            if (result != 0)
+            if (in_type == type::folder)
             {
-                std::string prefix;
-                for (wchar_t const *p = woutput.c_str(); *p; )
-                {
-                    auto filename = internal::wstr2str(p);
-                    p += filename.size();
-                    // In multiselect mode, we advance p one step more and
-                    // check for another filename. If there is one and the
-                    // prefix is empty, it means we just read the prefix.
-                    if (allow_multiselect && *++p && prefix.empty())
-                    {
-                        prefix = filename + "/";
-                        continue;
-                    }
+                return ""; // Unsupported for now
+            }
 
-                    m_result.push_back(prefix + filename);
+            if (allow_multiselect)
+                ofn.Flags |= OFN_ALLOWMULTISELECT;
+            ofn.Flags |= OFN_PATHMUSTEXIST;
+            if (GetOpenFileNameW(&ofn) == 0)
+                return "";
+
+            std::string prefix;
+            for (wchar_t const *p = woutput.c_str(); *p; )
+            {
+                auto filename = internal::wstr2str(p);
+                p += filename.size();
+                // In multiselect mode, we advance p one step more and
+                // check for another filename. If there is one and the
+                // prefix is empty, it means we just read the prefix.
+                if (allow_multiselect && *++p && prefix.empty())
+                {
+                    prefix = filename + "/";
+                    continue;
                 }
+
+                m_result.push_back(prefix + filename);
             }
 
             return "";
@@ -680,11 +682,21 @@ public:
 
     std::vector<std::string> result()
     {
-        m_async->result();
 #if _WIN32
+        m_async->result();
         return m_result;
 #else
-        return {};
+        std::vector<std::string> ret;
+        auto result = m_async->result();
+        for (;;)
+        {
+            auto i = result.find('\n');
+            if (i == 0 || i == std::string::npos)
+                break;
+            ret.push_back(result.substr(0, i));
+            result = result.substr(i + 1, result.size());
+        }
+        return ret;
 #endif
     }
 };
@@ -701,17 +713,19 @@ public:
     {
     }
 
-    std::vector<std::string> result()
+    std::string result()
     {
-        m_async->result();
 #if _WIN32
-        return m_result;
+        return m_async->result();
 #else
-        return {};
+        // Strip the newline character
+        auto ret = m_async->result();
+        return ret.back() == '\n' ? ret.substr(0, ret.size() - 1) : ret;
 #endif
     }
 };
 
+#if 0 // Not implemented
 class select_folder : public internal::file_dialog
 {
 public:
@@ -721,6 +735,7 @@ public:
     {
     }
 };
+#endif
 
 } // namespace pfd
 
