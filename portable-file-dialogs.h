@@ -35,11 +35,6 @@
 namespace pfd
 {
 
-// Forward declarations for our API
-class settings;
-class notify;
-class message;
-
 enum class button
 {
     cancel = -1,
@@ -66,6 +61,70 @@ enum class icon
 
 // Process wait timeout, in milliseconds
 static int const default_wait_timeout = 20;
+
+// The settings class, only exposing to the user a way to set verbose mode
+// and to force a rescan of installed desktop helpers (zenity, kdialog…).
+class settings
+{
+public:
+    static void verbose(bool value)
+    {
+        settings().flags(flag::is_verbose) = value;
+    }
+
+    static void rescan()
+    {
+        settings(true);
+    }
+
+protected:
+    enum class flag
+    {
+        is_scanned = 0,
+        is_verbose,
+
+        has_zenity,
+        has_matedialog,
+        has_qarma,
+        has_kdialog,
+
+        max_flag,
+    };
+
+    explicit settings(bool resync = false)
+    {
+        flags(flag::is_scanned) &= !resync;
+    }
+
+    bool is_zenity() const
+    {
+        return flags(flag::has_zenity) ||
+               flags(flag::has_matedialog) ||
+               flags(flag::has_qarma);
+    }
+
+    bool is_kdialog() const
+    {
+        return flags(flag::has_kdialog);
+    }
+
+    // Static array of flags for internal state
+    bool const &flags(flag in_flag) const
+    {
+        static bool flags[(size_t)flag::max_flag];
+        return flags[(size_t)in_flag];
+    }
+
+    // Non-const getter for the static array of flags
+    bool &flags(flag in_flag)
+    {
+        return const_cast<bool &>(static_cast<const settings *>(this)->flags(in_flag));
+    }
+};
+
+// Forward declarations for our API
+class notify;
+class message;
 
 // Internal classes, not to be used by client applications
 namespace internal
@@ -212,9 +271,8 @@ private:
 #endif
 };
 
-class dialog
+class dialog : protected settings
 {
-    friend class pfd::settings;
     friend class pfd::notify;
     friend class pfd::message;
 
@@ -225,11 +283,10 @@ public:
     }
 
 protected:
-    explicit dialog(bool resync = false)
+    explicit dialog()
       : m_async(std::make_shared<executor>())
     {
-        static bool analysed = false;
-        if (resync || !analysed)
+        if (!flags(flag::is_scanned))
         {
 #if !_WIN32
             flags(flag::has_zenity) = check_program("zenity");
@@ -237,47 +294,8 @@ protected:
             flags(flag::has_qarma) = check_program("qarma");
             flags(flag::has_kdialog) = check_program("kdialog");
 #endif
-            analysed = true;
+            flags(flag::is_scanned) = true;
         }
-    }
-
-    enum class flag
-    {
-        is_verbose = 0,
-        has_zenity,
-        has_matedialog,
-        has_qarma,
-        has_kdialog,
-
-        max_flag,
-    };
-
-    bool is_zenity() const
-    {
-        return flags(flag::has_zenity) ||
-               flags(flag::has_matedialog) ||
-               flags(flag::has_qarma);
-    }
-
-    bool is_kdialog() const
-    {
-        return flags(flag::has_kdialog);
-    }
-
-    // Static array of flags for internal state
-    bool const &flags(flag in_flag) const
-    {
-        static bool flags[(size_t)flag::max_flag];
-        return flags[(size_t)in_flag];
-    }
-
-    std::string execute(std::string const &command, int *exit_code = nullptr)
-    {
-        if (flags(flag::is_verbose))
-            std::cerr << "pfd: " << command << std::endl;
-
-        m_async->start(command);
-        return m_async->result(exit_code);
     }
 
     std::string desktop_helper() const
@@ -331,13 +349,6 @@ protected:
         return "'" + std::regex_replace(str, std::regex("'"), "'\\''") + "'";
     }
 
-private:
-    // Non-const getter for the static array of flags
-    bool &flags(flag in_flag)
-    {
-        return const_cast<bool &>(static_cast<const dialog *>(this)->flags(in_flag));
-    }
-
     // Check whether a program is present using “which”
     bool check_program(std::string const &program)
     {
@@ -345,7 +356,8 @@ private:
         return false;
 #else
         int exit_code = -1;
-        execute("which " + program + " 2>/dev/null", &exit_code);
+        m_async->start("which " + program + " 2>/dev/null");
+        m_async->result(&exit_code);
         return exit_code == 0;
 #endif
     }
@@ -434,6 +446,9 @@ protected:
                 command += " --save";
         }
 
+        if (flags(flag::is_verbose))
+            std::cerr << "pfd: " << command << std::endl;
+
         m_async->start(command);
 #endif
     }
@@ -445,20 +460,6 @@ private:
 };
 
 } // namespace internal
-
-class settings
-{
-public:
-    static void verbose(bool value)
-    {
-        internal::dialog().flags(internal::dialog::flag::is_verbose) = value;
-    }
-
-    static void rescan()
-    {
-        internal::dialog(true);
-    }
-};
 
 class notify : public internal::dialog
 {
@@ -502,6 +503,10 @@ public:
                        " 5";
         }
 #endif
+
+        if (flags(flag::is_verbose))
+            std::cerr << "pfd: " << command << std::endl;
+
         m_async->start(command);
     }
 };
@@ -604,6 +609,9 @@ public:
             if (choice == choice::ok_cancel)
                 command += " --yes-label OK --no-label Cancel";
         }
+
+        if (flags(flag::is_verbose))
+            std::cerr << "pfd: " << command << std::endl;
 
         m_async->start(command);
 #endif
