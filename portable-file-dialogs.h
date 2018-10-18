@@ -370,7 +370,14 @@ protected:
 class file_dialog : public dialog
 {
 protected:
-    enum type { open, save, folder, };
+    enum type
+    {
+        open,
+        save,
+#if 0 // Not implemented
+        folder,
+#endif
+    };
 
     file_dialog(type in_type,
                 std::string const &title,
@@ -475,6 +482,20 @@ protected:
                 command += " --confirm-overwrite";
             if (allow_multiselect)
                 command += " --multiple";
+        }
+        else if (is_kdialog())
+        {
+            if (in_type == type::save)
+                command += " --getsavefilename " + shell_quote(default_path);
+            else
+                command += " --getopenfilename " + shell_quote(default_path);
+
+            std::string filter;
+            for (size_t i = 0; i < filters.size() / 2; ++i)
+                filter += (i == 0 ? "" : " | ") + filters[2 * i] + "(" + filters[2 * i + 1] + ")";
+            command += " " + shell_quote(filter);
+
+            command += " --title " + shell_quote(title);
         }
 
         if (flags(flag::is_verbose))
