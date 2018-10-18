@@ -4,7 +4,7 @@ A free C++11 file dialog library.
 
   * works on Linux, Windows.
   * single-header
-  * asynchronous (does not block the rest of your program!)
+  * synchronous *or* asynchronous (does not block the rest of your program!)
 
 Similar to [Tiny File Dialogs](https://sourceforge.net/projects/tinyfiledialogs/) but I like it better.
 
@@ -31,14 +31,17 @@ The currently available backends are:
 
 ![warning-win32](https://user-images.githubusercontent.com/245089/47136607-76919a00-d2b4-11e8-8f42-e2d62c4f9570.png)
 ![notify-win32](https://user-images.githubusercontent.com/245089/47142453-2ff76c00-d2c3-11e8-871a-1a110ac91eb2.png)
+![open-win32](https://user-images.githubusercontent.com/245089/47155865-0f8cd900-d2e6-11e8-8041-1e20b6f77dee.png)
 
 ## Screenshots (Linux, GNOME desktop)
 
 ![warning-gnome](https://user-images.githubusercontent.com/245089/47136608-772a3080-d2b4-11e8-9e1d-60a7e743e908.png)
 ![notify-gnome](https://user-images.githubusercontent.com/245089/47142455-30900280-d2c3-11e8-8b76-ea16c7e502d4.png)
+![open-gnome](https://user-images.githubusercontent.com/245089/47155867-0f8cd900-d2e6-11e8-93af-275636491ec4.png)
 
-## Screenshots (Linux, KDE desktop)
+## Screenshots (Linux, KDE Plasma desktop)
 
 ![warning-kde](https://user-images.githubusercontent.com/245089/47149255-4dcccd00-d2d3-11e8-84c9-f85612784680.png)
 ![notify-kde](https://user-images.githubusercontent.com/245089/47149206-27a72d00-d2d3-11e8-8f1b-96e462f08c2b.png)
+![open-kde](https://user-images.githubusercontent.com/245089/47155866-0f8cd900-d2e6-11e8-8006-f14b948afc55.png)
 
