@@ -434,10 +434,12 @@ protected:
                 return internal::wstr2str(woutput.c_str());
             }
 
+#if 0 // Not implemented
             if (in_type == type::folder)
             {
                 return ""; // Unsupported for now
             }
+#endif
 
             if (allow_multiselect)
                 ofn.Flags |= OFN_ALLOWMULTISELECT;
