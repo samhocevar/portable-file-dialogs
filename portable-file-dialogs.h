@@ -39,7 +39,7 @@ enum class button
 {
     cancel = -1,
     ok,
-    yes = ok,
+    yes,
     no,
 };
 
@@ -690,8 +690,10 @@ public:
         auto ret = m_async->result(&exit_code);
         if (exit_code < 0 /* this means cancel */ || ret == "Cancel\n")
             return button::cancel;
-        if (ret == "Yes\n" || ret == "OK\n")
+        if (ret == "OK\n")
             return button::ok;
+        if (ret == "Yes\n")
+            return button::yes;
         if (ret == "No\n")
             return button::no;
         if (m_mappings.count(exit_code) != 0)
