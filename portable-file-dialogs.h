@@ -254,8 +254,21 @@ protected:
 
     void stop()
     {
+        // Loop until the user closes the dialog
         while (!ready())
-            ; // loop forever
+        {
+#if _WIN32
+            // On Windows, we need to run the message pump. If the async
+            // thread uses a Windows API dialog, it may be attached to the
+            // main thread and waiting for messages that only we can dispatch.
+            MSG msg;
+            while (PeekMessage(&msg, nullptr, 0, 0, PM_REMOVE))
+            {
+                TranslateMessage(&msg);
+                DispatchMessage(&msg);
+            }
+#endif
+        }
     }
 
 private:
