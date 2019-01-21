@@ -190,6 +190,8 @@ public:
                             FALSE, CREATE_NEW_CONSOLE, nullptr, nullptr, &si, &m_pi))
             return; /* TODO: GetLastError()? */
         WaitForInputIdle(m_pi.hProcess, INFINITE);
+#elif __EMSCRIPTEN__
+        /* FIXME: do something */
 #else
         m_stream = popen(command.c_str(), "r");
         if (!m_stream)
