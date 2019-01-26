@@ -133,17 +133,17 @@ namespace internal
 #if _WIN32
 static inline std::wstring str2wstr(std::string const &str)
 {
-    int len = MultiByteToWideChar(CP_UTF8, 0, str.c_str(), str.size(), nullptr, 0);
+    int len = MultiByteToWideChar(CP_UTF8, 0, str.c_str(), (int)str.size(), nullptr, 0);
     std::wstring ret(len, '\0');
-    MultiByteToWideChar(CP_UTF8, 0, str.c_str(), str.size(), (LPWSTR)ret.data(), ret.size());
+    MultiByteToWideChar(CP_UTF8, 0, str.c_str(), (int)str.size(), (LPWSTR)ret.data(), (int)ret.size());
     return ret;
 }
 
 static inline std::string wstr2str(std::wstring const &str)
 {
-    int len = WideCharToMultiByte(CP_UTF8, 0, str.c_str(), str.size(), nullptr, 0, nullptr, nullptr);
+    int len = WideCharToMultiByte(CP_UTF8, 0, str.c_str(), (int)str.size(), nullptr, 0, nullptr, nullptr);
     std::string ret(len, '\0');
-    WideCharToMultiByte(CP_UTF8, 0, str.c_str(), str.size(), (LPSTR)ret.data(), ret.size(), nullptr, nullptr);
+    WideCharToMultiByte(CP_UTF8, 0, str.c_str(), (int)str.size(), (LPSTR)ret.data(), (int)ret.size(), nullptr, nullptr);
     return ret;
 }
 #endif
@@ -426,7 +426,7 @@ protected:
 
             auto woutput = std::wstring(MAX_PATH * 256, L'\0');
             ofn.lpstrFile = (LPWSTR)woutput.data();
-            ofn.nMaxFile = woutput.size();
+            ofn.nMaxFile = (DWORD)woutput.size();
             auto wdefault_path = internal::str2wstr(default_path);
             if (!wdefault_path.empty())
             {
@@ -434,7 +434,7 @@ protected:
                 ofn.lpstrInitialDir = wdefault_path.c_str();
                 // Initial file selection
                 ofn.lpstrFileTitle = (LPWSTR)wdefault_path.data();
-                ofn.nMaxFileTitle = wdefault_path.size();
+                ofn.nMaxFileTitle = (DWORD)wdefault_path.size();
             }
             ofn.lpstrTitle = wtitle.c_str();
             ofn.Flags = OFN_NOCHANGEDIR | OFN_EXPLORER;
