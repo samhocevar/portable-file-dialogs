@@ -1,7 +1,7 @@
 //
 //  Portable File Dialogs
 //
-//  Copyright © 2018 Sam Hocevar <sam@hocevar.net>
+//  Copyright © 2018—2019 Sam Hocevar <sam@hocevar.net>
 //
 //  This library is free software. It comes without any warranty, to
 //  the extent permitted by applicable law. You can redistribute it
@@ -96,14 +96,23 @@ protected:
         flags(flag::is_scanned) &= !resync;
     }
 
-    bool is_zenity() const
+    inline bool is_osascript() const
+    {
+#if __APPLE__
+        return true;
+#else
+        return false;
+#endif
+    }
+
+    inline bool is_zenity() const
     {
         return flags(flag::has_zenity) ||
                flags(flag::has_matedialog) ||
                flags(flag::has_qarma);
     }
 
-    bool is_kdialog() const
+    inline bool is_kdialog() const
     {
         return flags(flag::has_kdialog);
     }
@@ -303,7 +312,7 @@ protected:
     {
         if (!flags(flag::is_scanned))
         {
-#if !_WIN32
+#if !__APPLE && !_WIN32
             flags(flag::has_zenity) = check_program("zenity");
             flags(flag::has_matedialog) = check_program("matedialog");
             flags(flag::has_qarma) = check_program("qarma");
@@ -315,11 +324,15 @@ protected:
 
     std::string desktop_helper() const
     {
+#if __APPLE__
+        return "osascript";
+#else
         return flags(flag::has_zenity) ? "zenity"
              : flags(flag::has_matedialog) ? "matedialog"
              : flags(flag::has_qarma) ? "qarma"
              : flags(flag::has_kdialog) ? "kdialog"
              : "echo";
+#endif
     }
 
     std::string buttons_to_name(choice choice) const
@@ -356,6 +369,13 @@ protected:
     std::string powershell_quote(std::string const &str) const
     {
         return "'" + std::regex_replace(str, std::regex("['\"]"), "$&$&") + "'";
+    }
+
+    // Properly quote a string for osascript: replace ' with '\'' and \ or " with \\ or \"
+    std::string osascript_quote(std::string const &str) const
+    {
+        return "\"" + std::regex_replace(std::regex_replace(str,
+                          std::regex("[\\\\\"]"), "\\$&"), std::regex("'"), "'\\''") + "\"";
     }
 
     // Properly quote a string for the shell: just replace ' with '\''
@@ -558,7 +578,12 @@ public:
 #else
         auto command = desktop_helper();
 
-        if (is_zenity())
+        if (is_osascript())
+        {
+            command += " -e 'display notification " + osascript_quote(message) +
+                       "     with title " + osascript_quote(title) + "'";
+        }
+        else if (is_zenity())
         {
             command += " --notification"
                        " --window-icon " + get_icon_name(icon) +
