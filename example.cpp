@@ -1,7 +1,7 @@
 //
 //  Portable File Dialogs
 //
-//  Copyright © 2018 Sam Hocevar <sam@hocevar.net>
+//  Copyright © 2018—2019 Sam Hocevar <sam@hocevar.net>
 //
 //  This program is free software. It comes without any warranty, to
 //  the extent permitted by applicable law. You can redistribute it
@@ -21,7 +21,7 @@ int main()
 
     // Notification
     pfd::notify("Important Notification",
-                "This is a message, pay attention to it!",
+                "This is ' a message, pay \" attention \\ to it!",
                 pfd::icon::info);
 
     // Message box with nice message
