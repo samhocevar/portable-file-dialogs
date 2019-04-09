@@ -40,6 +40,7 @@ int main()
         case pfd::button::yes: std::cout << "User agreed.\n"; break;
         case pfd::button::no: std::cout << "User disagreed.\n"; break;
         case pfd::button::cancel: std::cout << "User freaked out.\n"; break;
+        default: break; // Should not happen
     }
 
     // File open
