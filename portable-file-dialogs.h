@@ -157,6 +157,13 @@ static inline std::string wstr2str(std::wstring const &str)
 }
 #endif
 
+// This is necessary until C++20 which will have std::string::ends_with()
+static inline bool ends_with(std::string const &str, std::string const &suffix)
+{
+    return suffix.size() <= str.size() &&
+        str.compare(str.size() - suffix.size(), suffix.size(), suffix) == 0;
+}
+
 class executor
 {
     friend class dialog;
@@ -202,7 +209,7 @@ public:
 #elif __EMSCRIPTEN__
         /* FIXME: do something */
 #else
-        m_stream = popen(command.c_str(), "r");
+        m_stream = popen((command + " 2>/dev/null").c_str(), "r");
         if (!m_stream)
             return;
         m_fd = fileno(m_stream);
@@ -646,7 +653,48 @@ public:
 #else
         auto command = desktop_helper();
 
-        if (is_zenity())
+        if (is_osascript())
+        {
+            command += " -e 'display dialog " + osascript_quote(text) +
+                       "     with title " + osascript_quote(title);
+            switch (choice)
+            {
+                case choice::ok_cancel:
+                    command += "buttons {\"OK\", \"Cancel\"} "
+                               "default button \"OK\" "
+                               "cancel button \"Cancel\"";
+                    m_mappings[256] = button::cancel;
+                    break;
+                case choice::yes_no:
+                    command += "buttons {\"Yes\", \"No\"} "
+                               "default button \"No\" "
+                               "cancel button \"No\"";
+                    m_mappings[256] = button::no;
+                    break;
+                case choice::yes_no_cancel:
+                    command += "buttons {\"Yes\", \"No\", \"Cancel\"} "
+                               "default button \"No\" "
+                               "cancel button \"Cancel\"";
+                    m_mappings[256] = button::cancel;
+                    break;
+                case choice::ok: default:
+                    command += "buttons {\"OK\"} "
+                               "default button \"OK\" "
+                               "cancel button \"OK\"";
+                    m_mappings[256] = button::ok;
+                    break;
+            }
+            command += " with icon ";
+            switch (icon)
+            {
+                case icon::info: default: command += " note"; break;
+                case icon::warning: command += " caution"; break;
+                case icon::error: command += " stop"; break;
+                case icon::question: command += " note"; break;
+            }
+            command += "'";
+        }
+        else if (is_zenity())
         {
             switch (choice)
             {
@@ -715,13 +763,16 @@ public:
     {
         int exit_code;
         auto ret = m_async->result(&exit_code);
-        if (exit_code < 0 /* this means cancel */ || ret == "Cancel\n")
+        // osascript will say "button returned:Cancel\n"
+        // and others will just say "Cancel\n"
+        if (exit_code < 0 || // this means cancel
+            internal::ends_with(ret, "Cancel\n"))
             return button::cancel;
-        if (ret == "OK\n")
+        if (internal::ends_with(ret, "OK\n"))
             return button::ok;
-        if (ret == "Yes\n")
+        if (internal::ends_with(ret, "Yes\n"))
             return button::yes;
-        if (ret == "No\n")
+        if (internal::ends_with(ret, "No\n"))
             return button::no;
         if (m_mappings.count(exit_code) != 0)
             return m_mappings[exit_code];
