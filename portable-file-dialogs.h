@@ -687,10 +687,13 @@ public:
             command += " with icon ";
             switch (icon)
             {
-                case icon::info: default: command += " note"; break;
-                case icon::warning: command += " caution"; break;
-                case icon::error: command += " stop"; break;
-                case icon::question: command += " note"; break;
+                #define PFD_OSX_ICON(n) "alias ((path to library folder from system domain) as text " \
+                    "& \"CoreServices:CoreTypes.bundle:Contents:Resources:" n ".icns\")"
+                case icon::info: default: command += PFD_OSX_ICON("ToolBarInfo"); break;
+                case icon::warning: command += "caution"; break;
+                case icon::error: command += "stop"; break;
+                case icon::question: command += PFD_OSX_ICON("GenericQuestionMarkIcon"); break;
+                #undef PFD_OSX_ICON
             }
             command += "'";
         }
