@@ -735,13 +735,13 @@ public:
                     break;
                 case choice::yes_no:
                     command += "buttons {\"Yes\", \"No\"} "
-                               "default button \"No\" "
+                               "default button \"Yes\" "
                                "cancel button \"No\"";
                     m_mappings[256] = button::no;
                     break;
                 case choice::yes_no_cancel:
                     command += "buttons {\"Yes\", \"No\", \"Cancel\"} "
-                               "default button \"No\" "
+                               "default button \"Yes\" "
                                "cancel button \"Cancel\"";
                     m_mappings[256] = button::cancel;
                     break;
