@@ -2,7 +2,7 @@
 
 A free C++11 file dialog library.
 
-  * works on Linux, Windows.
+  * works on Windows, Mac OS X, Linux.
   * single-header
   * synchronous *or* asynchronous (does not block the rest of your program!)
 
@@ -19,6 +19,7 @@ lack of proper shell escaping, and synchronous architecture.
 The currently available backends are:
 
   * Win32 API (all known versions of Windows)
+  * Mac OS X (using AppleScript)
   * GNOME desktop (using [Zenity](https://en.wikipedia.org/wiki/Zenity) or its clones Matedialog and Qarma)
   * KDE desktop (using [KDialog](https://github.com/KDE/kdialog))
 
@@ -33,6 +34,12 @@ The currently available backends are:
 ![warning-win32](https://user-images.githubusercontent.com/245089/47136607-76919a00-d2b4-11e8-8f42-e2d62c4f9570.png)
 ![notify-win32](https://user-images.githubusercontent.com/245089/47142453-2ff76c00-d2c3-11e8-871a-1a110ac91eb2.png)
 ![open-win32](https://user-images.githubusercontent.com/245089/47155865-0f8cd900-d2e6-11e8-8041-1e20b6f77dee.png)
+
+## Screenshots (Mac OS X, dark theme)
+
+![warning-osxdark](https://user-images.githubusercontent.com/245089/56053001-22dba700-5d53-11e9-8233-ca7a2c58188d.png)
+![notify-osxdark](https://user-images.githubusercontent.com/245089/56053188-bc0abd80-5d53-11e9-8298-68aa96315c6c.png)
+![open-osxdark](https://user-images.githubusercontent.com/245089/56053378-39363280-5d54-11e9-9583-9f1c978fa0db.png)
 
 ## Screenshots (Linux, GNOME desktop)
 
