@@ -519,43 +519,65 @@ protected:
 
         if (is_osascript())
         {
-            command += " -e 'set f to choose";
-            command += " file";
+            command += " -e 'set ret to choose";
+            switch (in_type)
+            {
+                case type::save:
+                    command += " file name";
+                    break;
+                case type::open: default:
+                    command += " file";
+                    if (allow_multiselect)
+                        command += " with multiple selections allowed";
+                    break;
+#if 0
+                case type::folder:
+                    // FIXME
+                    break;
+#endif
+            }
+
+            if (default_path.size())
+                command += " default location " + osascript_quote(default_path);
             command += " with prompt " + osascript_quote(title);
 
-            if (allow_multiselect)
-                command += " with multiple selections allowed";
-
-            // Concatenate all user-provided filter patterns
-            std::string patterns;
-            for (size_t i = 0; i < filters.size() / 2; ++i)
-                patterns += " " + filters[2 * i + 1];
-
-            // Split the pattern list to check whether "*" is in there; if it
-            // is, we have to disable filters because there is no mechanism in
-            // OS X for the user to override the filter.
-            std::regex sep("\\s+");
-            std::string filter_list;
-            bool has_filter = true;
-            std::sregex_token_iterator iter(patterns.begin(), patterns.end(), sep, -1);
-            std::sregex_token_iterator end;
-            for ( ; iter != end; ++iter)
+            if (in_type == type::open)
             {
-                auto pat = iter->str();
-                if (pat == "*" || pat == "*.*")
-                    has_filter = false;
-                else if (internal::starts_with(pat, "*."))
-                    filter_list += (filter_list.size() == 0 ? "" : ",") +
-                                   osascript_quote(pat.substr(2, pat.size() - 2));
-            }
-            if (has_filter && filter_list.size() > 0)
-                command += " of type {" + filter_list + "}";
+                // Concatenate all user-provided filter patterns
+                std::string patterns;
+                for (size_t i = 0; i < filters.size() / 2; ++i)
+                    patterns += " " + filters[2 * i + 1];
 
-            command += "\nset s to \"\"";
-            command += "\nrepeat with i in f";
-            command += "\n  set s to s & (POSIX path of i) & \"\\n\"";
-            command += "\nend repeat";
-            command += "\ncopy s to stdout'";
+                // Split the pattern list to check whether "*" is in there; if it
+                // is, we have to disable filters because there is no mechanism in
+                // OS X for the user to override the filter.
+                std::regex sep("\\s+");
+                std::string filter_list;
+                bool has_filter = true;
+                std::sregex_token_iterator iter(patterns.begin(), patterns.end(), sep, -1);
+                std::sregex_token_iterator end;
+                for ( ; iter != end; ++iter)
+                {
+                    auto pat = iter->str();
+                    if (pat == "*" || pat == "*.*")
+                        has_filter = false;
+                    else if (internal::starts_with(pat, "*."))
+                        filter_list += (filter_list.size() == 0 ? "" : ",") +
+                                       osascript_quote(pat.substr(2, pat.size() - 2));
+                }
+                if (has_filter && filter_list.size() > 0)
+                    command += " of type {" + filter_list + "}";
+
+                command += "\nset s to \"\"";
+                command += "\nrepeat with i in ret";
+                command += "\n  set s to s & (POSIX path of i) & \"\\n\"";
+                command += "\nend repeat";
+                command += "\ncopy s to stdout'";
+            }
+            else
+            {
+                command += "\nPOSIX path of ret'";
+            }
         }
         else if (is_zenity())
         {
