@@ -585,7 +585,10 @@ protected:
                 }
                 if (has_filter && filter_list.size() > 0)
                     command += " of type {" + filter_list + "}";
+            }
 
+            if (in_type == type::open && allow_multiselect)
+            {
                 command += "\nset s to \"\"";
                 command += "\nrepeat with i in ret";
                 command += "\n  set s to s & (POSIX path of i) & \"\\n\"";
