@@ -28,6 +28,7 @@
 #include <commdlg.h>
 #include <future>
 #else
+#include <cstdlib>  // for std::getenv()
 #include <fcntl.h>  // for fcntl()
 #include <unistd.h> // for read()
 #endif
@@ -330,6 +331,16 @@ protected:
             flags(flag::has_matedialog) = check_program("matedialog");
             flags(flag::has_qarma) = check_program("qarma");
             flags(flag::has_kdialog) = check_program("kdialog");
+
+            // If multiple helpers are available, try to default to the best one
+            if (flags(flag::has_zenity) && flags(flag::has_kdialog))
+            {
+                auto desktop_name = std::getenv("XDG_SESSION_DESKTOP");
+                if (desktop_name && desktop_name == std::string("gnome"))
+                    flags(flag::has_kdialog) = false;
+                else if (desktop_name && desktop_name == std::string("KDE"))
+                    flags(flag::has_zenity) = false;
+            }
 #endif
             flags(flag::is_scanned) = true;
         }
