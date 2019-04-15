@@ -2,9 +2,9 @@
 
 A free C++11 file dialog library.
 
-  * works on Windows, Mac OS X, Linux.
-  * single-header
-  * synchronous *or* asynchronous (does not block the rest of your program!)
+  * works on Windows, Mac OS X, Linux
+  * **single-header**, no extra library dependencies
+  * **synchronous *or* asynchronous** (does not block the rest of your program!)
 
 Similar to [Tiny File Dialogs](https://sourceforge.net/projects/tinyfiledialogs/) but I like it better.
 
