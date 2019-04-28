@@ -28,6 +28,7 @@
 #include <commdlg.h>
 #include <future>
 #else
+#include <cstdlib>  // for std::getenv()
 #include <fcntl.h>  // for fcntl()
 #include <unistd.h> // for read()
 #endif
