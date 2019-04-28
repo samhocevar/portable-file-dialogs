@@ -43,7 +43,7 @@ enum class button
     no,
     abort,
     retry,
-    ignore
+    ignore,
 };
 
 enum class choice
