@@ -42,6 +42,9 @@ enum class button
     ok,
     yes,
     no,
+    abort,
+    retry,
+    ignore,
 };
 
 enum class choice
@@ -50,6 +53,8 @@ enum class choice
     ok_cancel,
     yes_no,
     yes_no_cancel,
+    retry_cancel,
+    abort_retry_ignore,
 };
 
 enum class icon
@@ -366,6 +371,8 @@ protected:
             case choice::ok_cancel: return "okcancel";
             case choice::yes_no: return "yesno";
             case choice::yes_no_cancel: return "yesnocancel";
+            case choice::retry_cancel: return "retrycancel";
+            case choice::abort_retry_ignore: return "abortretryignore";
             /* case choice::ok: */ default: return "ok";
         }
     }
@@ -714,6 +721,8 @@ public:
             case choice::ok_cancel: style |= MB_OKCANCEL; break;
             case choice::yes_no: style |= MB_YESNO; break;
             case choice::yes_no_cancel: style |= MB_YESNOCANCEL; break;
+            case choice::retry_cancel: style |= MB_RETRYCANCEL; break;
+            case choice::abort_retry_ignore: style |= MB_ABORTRETRYIGNORE; break;
             /* case choice::ok: */ default: style |= MB_OK; break;
         }
 
@@ -721,6 +730,9 @@ public:
         m_mappings[IDOK] = button::ok;
         m_mappings[IDYES] = button::yes;
         m_mappings[IDNO] = button::no;
+        m_mappings[IDABORT] = button::abort;
+        m_mappings[IDRETRY] = button::retry;
+        m_mappings[IDIGNORE] = button::ignore;
 
         m_async->start([text, title, style](int *exit_code) -> std::string
         {
@@ -756,6 +768,18 @@ public:
                                "cancel button \"Cancel\"";
                     m_mappings[256] = button::cancel;
                     break;
+                case choice::retry_cancel:
+                    command += "buttons {\"Retry\", \"Cancel\"} "
+                        "default button \"Retry\" "
+                        "cancel button \"Cancel\"";
+                    m_mappings[256] = button::cancel;
+                    break;
+                case choice::abort_retry_ignore:
+                    command += "buttons {\"Abort\", \"Retry\", \"Ignore\"} "
+                        "default button \"Retry\" "
+                        "cancel button \"Retry\"";
+                    m_mappings[256] = button::cancel;
+                    break;
                 case choice::ok: default:
                     command += "buttons {\"OK\"} "
                                "default button \"OK\" "
@@ -788,6 +812,10 @@ public:
                     command += " --question --switch --extra-button No --extra-button Yes"; break;
                 case choice::yes_no_cancel:
                     command += " --question --switch --extra-button No --extra-button Yes --extra-button Cancel"; break;
+                case choice::retry_cancel:
+                    command += " --question --switch --extra-button Retry --extra-button Cancel"; break;
+                case choice::abort_retry_ignore:
+                    command += " --question --switch --extra-button Abort --extra-button Retry --extra-button Ignore"; break;
                 default:
                     switch (icon)
                     {
@@ -856,6 +884,12 @@ public:
             return button::yes;
         if (internal::ends_with(ret, "No\n"))
             return button::no;
+        if (internal::ends_with(ret, "Abort\n"))
+            return button::abort;
+        if (internal::ends_with(ret, "Retry\n"))
+            return button::retry;
+        if (internal::ends_with(ret, "Ignore\n"))
+            return button::ignore;
         if (m_mappings.count(exit_code) != 0)
             return m_mappings[exit_code];
         return exit_code == 0 ? button::ok : button::cancel;
