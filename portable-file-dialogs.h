@@ -589,6 +589,7 @@ protected:
 
             if (in_type == type::open && allow_multiselect)
             {
+                command += "\nif class of ret is alias then\nset ret to {ret}\nend if";
                 command += "\nset s to \"\"";
                 command += "\nrepeat with i in ret";
                 command += "\n  set s to s & (POSIX path of i) & \"\\n\"";
