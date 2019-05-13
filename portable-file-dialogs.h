@@ -218,8 +218,8 @@ public:
                             FALSE, CREATE_NEW_CONSOLE, nullptr, nullptr, &si, &m_pi))
             return; /* TODO: GetLastError()? */
         WaitForInputIdle(m_pi.hProcess, INFINITE);
-#elif __EMSCRIPTEN__
-        /* FIXME: do something */
+#elif __EMSCRIPTEN__ || __NX__
+        // FIXME: do something
 #else
         m_stream = popen((command + " 2>/dev/null").c_str(), "r");
         if (!m_stream)
@@ -261,6 +261,8 @@ protected:
             CloseHandle(m_pi.hThread);
             CloseHandle(m_pi.hProcess);
         }
+#elif __EMSCRIPTEN__ || __NX__
+        // FIXME: do something
 #else
         char buf[BUFSIZ];
         ssize_t received = read(m_fd, buf, BUFSIZ - 1);
