@@ -421,6 +421,7 @@ protected:
     bool check_program(std::string const &program)
     {
 #if _WIN32
+        (void)program;
         return false;
 #else
         int exit_code = -1;
@@ -467,6 +468,7 @@ protected:
         m_async->start([this, in_type, title, default_path, filter_list,
                         allow_multiselect, confirm_overwrite](int *exit_code) -> std::string
         {
+            (void)exit_code;
             auto wtitle = internal::str2wstr(title);
             auto wfilter_list = internal::str2wstr(filter_list);
 
@@ -491,7 +493,6 @@ protected:
             }
             ofn.lpstrTitle = wtitle.c_str();
             ofn.Flags = OFN_NOCHANGEDIR | OFN_EXPLORER;
-            int result = 0;
 
             if (in_type == type::save)
             {
