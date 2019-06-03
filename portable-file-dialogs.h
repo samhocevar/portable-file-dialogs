@@ -661,18 +661,22 @@ public:
 
 #if _WIN32
         int const delay = 5000;
+        auto script = "Add-Type -AssemblyName System.Windows.Forms;"
+                      "$exe = (Get-Process -id " + std::to_string(GetCurrentProcessId()) + ").Path;"
+                      "$popup = New-Object System.Windows.Forms.NotifyIcon;"
+                      "$popup.Icon = [System.Drawing.Icon]::ExtractAssociatedIcon($exe);"
+                      "$popup.Visible = $true;"
+                      "$popup.ShowBalloonTip(" + std::to_string(delay) + ", "
+                                               + powershell_quote(title) + ", "
+                                               + powershell_quote(message) + ", "
+                                           "'" + get_icon_name(icon) + "');"
+                      "Start-Sleep -Milliseconds " + std::to_string(delay) + ";"
+                      "$popup.Dispose();"; // Ensure the icon is cleaned up, but not too soon.
+        // Double fork to ensure the powershell script runs in the background
         auto command = "powershell.exe -Command \""
-                       "    Add-Type -AssemblyName System.Windows.Forms;"
-                       "    $exe = (Get-Process -id " + std::to_string(GetCurrentProcessId()) + ").Path;"
-                       "    $popup = New-Object System.Windows.Forms.NotifyIcon;"
-                       "    $popup.Icon = [System.Drawing.Icon]::ExtractAssociatedIcon($exe);"
-                       "    $popup.Visible = $true;"
-                       "    $popup.ShowBalloonTip(" + std::to_string(delay) + ", "
-                                                    + powershell_quote(title) + ", "
-                                                    + powershell_quote(message) + ", "
-                                                "'" + get_icon_name(icon) + "');"
-                       "    Start-Sleep -Milliseconds " + std::to_string(delay) + ";"
-                       "    $popup.Dispose();" // Ensure the icon is cleaned up, but not too soon.
+                       "    start-process powershell"
+                       "        -ArgumentList " + powershell_quote(script) +
+                       "        -WindowStyle hidden"
                        "\"";
 #else
         auto command = desktop_helper();
