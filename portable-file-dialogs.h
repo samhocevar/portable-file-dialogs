@@ -26,6 +26,7 @@
 #endif
 #include <windows.h>
 #include <commdlg.h>
+#include <shlobj.h>
 #include <future>
 #else
 #include <cstdlib>  // for std::getenv()
@@ -443,9 +444,7 @@ protected:
     {
         open,
         save,
-#if 0 // Not implemented
         folder,
-#endif
     };
 
     file_dialog(type in_type,
@@ -471,6 +470,54 @@ protected:
             (void)exit_code;
             auto wtitle = internal::str2wstr(title);
             auto wfilter_list = internal::str2wstr(filter_list);
+            auto wdefault_path = internal::str2wstr(default_path);
+
+            // Folder selection uses a different method
+            if (in_type == type::folder)
+            {
+                BROWSEINFOW bi;
+                memset(&bi, 0, sizeof(bi));
+                auto status = CoInitializeEx(nullptr, COINIT_APARTMENTTHREADED);
+
+                auto callback = [&](HWND hwnd, UINT uMsg, LPARAM lp, LPARAM pData) -> INT
+                {
+                    switch (uMsg)
+                    {
+                        case BFFM_INITIALIZED:
+                            SendMessage(hwnd, BFFM_SETSELECTION, TRUE, (LPARAM)wdefault_path.c_str());
+                            break;
+                        case BFFM_SELCHANGED:
+                            // FIXME: this doesn’t seem to work wuth BIF_NEWDIALOGSTYLE
+                            SendMessage(hwnd, BFFM_SETSTATUSTEXT, 0, (LPARAM)wtitle.c_str());
+                            break;
+                    }
+                    return 0;
+                };
+
+                bi.lpfn = [](HWND hwnd, UINT uMsg, LPARAM lp, LPARAM pData) -> INT
+                {
+                    return (*(decltype(&callback))pData)(hwnd, uMsg, lp, 0);
+                };
+                bi.lParam = (LPARAM)&callback;
+
+                if (status == S_OK)
+                    bi.ulFlags |= BIF_NEWDIALOGSTYLE;
+                bi.ulFlags |= BIF_EDITBOX;
+                bi.ulFlags |= BIF_STATUSTEXT;
+                auto *list = SHBrowseForFolderW(&bi);
+                std::string ret;
+                if (list)
+                {
+                    auto buffer = new wchar_t[MAX_PATH];
+                    SHGetPathFromIDListW(list, buffer);
+                    CoTaskMemFree(list);
+                    ret = internal::wstr2str(buffer);
+                    delete[] buffer;
+                }
+                if (status == S_OK)
+                    CoUninitialize();
+                return ret;
+            }
 
             OPENFILENAMEW ofn;
             memset(&ofn, 0, sizeof(ofn));
@@ -482,7 +529,6 @@ protected:
             auto woutput = std::wstring(MAX_PATH * 256, L'\0');
             ofn.lpstrFile = (LPWSTR)woutput.data();
             ofn.nMaxFile = (DWORD)woutput.size();
-            auto wdefault_path = internal::str2wstr(default_path);
             if (!wdefault_path.empty())
             {
                 // Initial directory
@@ -502,13 +548,6 @@ protected:
                     return "";
                 return internal::wstr2str(woutput.c_str());
             }
-
-#if 0 // Not implemented
-            if (in_type == type::folder)
-            {
-                return ""; // Unsupported for now
-            }
-#endif
 
             if (allow_multiselect)
                 ofn.Flags |= OFN_ALLOWMULTISELECT;
@@ -530,7 +569,7 @@ protected:
                     continue;
                 }
 
-                m_result.push_back(prefix + filename);
+                m_vector_result.push_back(prefix + filename);
             }
 
             return "";
@@ -642,8 +681,40 @@ protected:
     }
 
 protected:
+    std::string string_result()
+    {
 #if _WIN32
-    std::vector<std::string> m_result;
+        return m_async->result();
+#else
+        // Strip the newline character
+        auto ret = m_async->result();
+        return ret.back() == '\n' ? ret.substr(0, ret.size() - 1) : ret;
+#endif
+    }
+
+    std::vector<std::string> vector_result()
+    {
+#if _WIN32
+        m_async->result();
+        return m_vector_result;
+#else
+        std::vector<std::string> ret;
+        auto result = m_async->result();
+        for (;;)
+        {
+            // Split result along newline characters
+            auto i = result.find('\n');
+            if (i == 0 || i == std::string::npos)
+                break;
+            ret.push_back(result.substr(0, i));
+            result = result.substr(i + 1, result.size());
+        }
+        return ret;
+#endif
+    }
+
+#if _WIN32
+    std::vector<std::string> m_vector_result;
 #endif
 };
 
@@ -924,22 +995,7 @@ public:
 
     std::vector<std::string> result()
     {
-#if _WIN32
-        m_async->result();
-        return m_result;
-#else
-        std::vector<std::string> ret;
-        auto result = m_async->result();
-        for (;;)
-        {
-            auto i = result.find('\n');
-            if (i == 0 || i == std::string::npos)
-                break;
-            ret.push_back(result.substr(0, i));
-            result = result.substr(i + 1, result.size());
-        }
-        return ret;
-#endif
+        return vector_result();
     }
 };
 
@@ -957,17 +1013,10 @@ public:
 
     std::string result()
     {
-#if _WIN32
-        return m_async->result();
-#else
-        // Strip the newline character
-        auto ret = m_async->result();
-        return ret.back() == '\n' ? ret.substr(0, ret.size() - 1) : ret;
-#endif
+        return string_result();
     }
 };
 
-#if 0 // Not implemented
 class select_folder : public internal::file_dialog
 {
 public:
@@ -976,8 +1025,12 @@ public:
       : file_dialog(type::folder, title, default_path)
     {
     }
+
+    std::string result()
+    {
+        return string_result();
+    }
 };
-#endif
 
 } // namespace pfd
 
