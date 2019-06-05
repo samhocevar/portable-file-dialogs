@@ -28,6 +28,7 @@ The currently available backends are:
   * [Message Box API](https://github.com/samhocevar/portable-file-dialogs/issues/1)
   * [Notification API](https://github.com/samhocevar/portable-file-dialogs/issues/2)
   * [File Open API](https://github.com/samhocevar/portable-file-dialogs/issues/3)
+  * [Folder Selection Open API](https://github.com/samhocevar/portable-file-dialogs/issues/13)
 
 ## Screenshots (Windows 10)
 
