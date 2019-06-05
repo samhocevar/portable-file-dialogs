@@ -651,6 +651,8 @@ protected:
 
             if (in_type == type::save)
                 command += " --save";
+            if (in_type == type::folder)
+                command += " --directory";
             if (confirm_overwrite)
                 command += " --confirm-overwrite";
             if (allow_multiselect)
@@ -658,10 +660,13 @@ protected:
         }
         else if (is_kdialog())
         {
-            if (in_type == type::save)
-                command += " --getsavefilename " + shell_quote(default_path);
-            else
-                command += " --getopenfilename " + shell_quote(default_path);
+            switch (in_type)
+            {
+                case type::save: command += " --getsavefilename"; break;
+                case type::open: command += " --getopenfilename"; break;
+                case type::folder: command += " --getexistingdirectory"; break;
+            }
+            command += " " + shell_quote(default_path);
 
             std::string filter;
             for (size_t i = 0; i < filters.size() / 2; ++i)
