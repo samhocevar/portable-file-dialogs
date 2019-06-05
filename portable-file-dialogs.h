@@ -590,11 +590,9 @@ protected:
                     if (allow_multiselect)
                         command += " with multiple selections allowed";
                     break;
-#if 0
                 case type::folder:
-                    // FIXME
+                    command += " folder";
                     break;
-#endif
             }
 
             if (default_path.size())
