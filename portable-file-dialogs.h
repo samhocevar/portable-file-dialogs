@@ -481,6 +481,8 @@ protected:
 
                 auto callback = [&](HWND hwnd, UINT uMsg, LPARAM lp, LPARAM pData) -> INT
                 {
+                    (void)lp;
+                    (void)pData;
                     switch (uMsg)
                     {
                         case BFFM_INITIALIZED:
