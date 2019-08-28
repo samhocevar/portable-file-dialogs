@@ -42,9 +42,18 @@ int main()
         case pfd::button::cancel: std::cout << "User freaked out.\n"; break;
         default: break; // Should not happen
     }
+#if _WIN32
+    std::string defaultPath = "C:\\";
+#else
+    std::string defaultPath = "/tmp/";
+#endif
+
+    // Directory selection
+    auto dir = pfd::select_folder("Select any directory", defaultPath).result();
+    std::cout << "Selected dir: " << dir << "\n";
 
     // File open
-    auto f = pfd::open_file("Choose files to read", "/tmp/",
+    auto f = pfd::open_file("Choose files to read", defaultPath,
                             { "Text Files (.txt .text)", "*.txt *.text",
                               "All Files", "*" },
                             true);
