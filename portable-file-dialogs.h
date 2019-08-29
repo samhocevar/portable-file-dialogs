@@ -454,7 +454,7 @@ protected:
     std::wstring wdefault_path;
 
     // use static function to pass as BFFCALLBACK for legacy folder select
-    static int bffcallback(HWND hwnd, UINT uMsg, LPARAM lp, LPARAM pData)
+    static int __stdcall bffcallback(HWND hwnd, UINT uMsg, LPARAM lp, LPARAM pData)
     {
         auto inst = (file_dialog*) pData;
         if(!inst)
