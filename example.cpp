@@ -14,6 +14,12 @@
 
 #include <iostream>
 
+#if _WIN32
+#define DEFAULT_PATH "C:\\"
+#else
+#define DEFAULT_PATH "/tmp"
+#endif
+
 int main()
 {
     // Set verbosity to true
@@ -43,8 +49,12 @@ int main()
         default: break; // Should not happen
     }
 
+    // Directory selection
+    auto dir = pfd::select_folder("Select any directory", DEFAULT_PATH).result();
+    std::cout << "Selected dir: " << dir << "\n";
+
     // File open
-    auto f = pfd::open_file("Choose files to read", "/tmp/",
+    auto f = pfd::open_file("Choose files to read", DEFAULT_PATH,
                             { "Text Files (.txt .text)", "*.txt *.text",
                               "All Files", "*" },
                             true);
