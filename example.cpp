@@ -54,3 +54,40 @@ int main()
     std::cout << "\n";
 }
 
+// Unused function that just tests the whole API
+void api()
+{
+    // pfd::settings
+    pfd::settings::verbose(true);
+    pfd::settings::rescan();
+
+    // pfd::notify
+    pfd::notify("", "");
+    pfd::notify("", "", pfd::icon::info);
+    pfd::notify("", "", pfd::icon::warning);
+    pfd::notify("", "", pfd::icon::error);
+    pfd::notify("", "", pfd::icon::question);
+
+    pfd::notify a("", "");
+    (void)a.ready();
+    (void)a.ready(42);
+
+    // pfd::message
+    pfd::message("", "");
+    pfd::message("", "", pfd::choice::ok);
+    pfd::message("", "", pfd::choice::ok_cancel);
+    pfd::message("", "", pfd::choice::yes_no);
+    pfd::message("", "", pfd::choice::yes_no_cancel);
+    pfd::message("", "", pfd::choice::retry_cancel);
+    pfd::message("", "", pfd::choice::abort_retry_ignore);
+    pfd::message("", "", pfd::choice::ok, pfd::icon::info);
+    pfd::message("", "", pfd::choice::ok, pfd::icon::warning);
+    pfd::message("", "", pfd::choice::ok, pfd::icon::error);
+    pfd::message("", "", pfd::choice::ok, pfd::icon::question);
+
+    pfd::message b("", "");
+    (void)b.ready();
+    (void)b.ready(42);
+    (void)b.result();
+}
+
