@@ -95,6 +95,7 @@ protected:
         has_matedialog,
         has_qarma,
         has_kdialog,
+        has_ifiledialog,
 
         max_flag,
     };
@@ -335,7 +336,9 @@ protected:
     {
         if (!flags(flag::is_scanned))
         {
-#if !__APPLE && !_WIN32
+#if _WIN32
+            flags(flag::has_ifiledialog) = IsWindowsVistaOrGreater();
+#elif !__APPLE__
             flags(flag::has_zenity) = check_program("zenity");
             flags(flag::has_matedialog) = check_program("matedialog");
             flags(flag::has_qarma) = check_program("qarma");
@@ -477,7 +480,7 @@ protected:
             if (in_type == type::folder)
             {
                 auto status = CoInitializeEx(nullptr, COINIT_APARTMENTTHREADED);
-                if (IsWindowsVistaOrGreater())
+                if (flags(flag::has_ifiledialog))
                 {
                     // On Vista and higher we should be able to use IFileDialog for folder selection
                     IFileDialog *ifd;
