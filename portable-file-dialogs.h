@@ -448,75 +448,6 @@ protected:
         folder,
     };
 
-#if _WIN32
-    // use instance variable to pass title and default path
-    std::wstring wtitle;
-    std::wstring wdefault_path;
-
-    // use static function to pass as BFFCALLBACK for legacy folder select
-    static int __stdcall bffcallback(HWND hwnd, UINT uMsg, LPARAM lp, LPARAM pData)
-    {
-        auto inst = (file_dialog*) pData;
-        if(!inst)
-            return 0;//will not happen
-        switch (uMsg)
-        {
-            case BFFM_INITIALIZED:
-                SendMessage(hwnd, BFFM_SETSELECTIONW, TRUE, (LPARAM)inst->wdefault_path.c_str());
-                break;
-            case BFFM_SELCHANGED:
-                // FIXME: this doesn’t seem to work with BIF_NEWDIALOGSTYLE
-                SendMessage(hwnd, BFFM_SETSTATUSTEXTW, 0, (LPARAM)inst->wtitle.c_str());
-                break;
-        }
-        return 0;
-    }
-
-    std::string select_folder_vista(IFileDialog *pFileDialog)
-    {
-        IShellItem* defaultFolder;
-        HRESULT hr = SHCreateItemFromParsingName(wdefault_path.c_str(),
-                                                 nullptr,
-                                                 IID_PPV_ARGS(&defaultFolder));
-
-        // Set default folder if it was found
-        // this sets only default folder. If windows has any info about recently selected folder,
-        // it will display it instead. Generally calling SetFolder(), that will set folder always
-        // "is not a good or expected user experience and should therefore be avoided":
-        // https://docs.microsoft.com/windows/win32/api/shobjidl_core/nf-shobjidl_core-ifiledialog-setfolder
-        if (SUCCEEDED(hr))
-            pFileDialog->SetDefaultFolder(defaultFolder);
-
-        // Set the dialog title and option to select folders
-        pFileDialog->SetOptions(FOS_PICKFOLDERS);
-        pFileDialog->SetTitle(wtitle.c_str());
-        hr = pFileDialog->Show(GetForegroundWindow());
-
-        wchar_t* wselected = nullptr;
-        if (SUCCEEDED(hr))
-        {
-            IShellItem* pItem;
-            hr = pFileDialog->GetResult(&pItem);
-
-            if (SUCCEEDED(hr))
-            {
-                std::cout<<pItem->GetDisplayName(SIGDN_FILESYSPATH, &wselected);
-                pItem->Release();
-            }
-        }
-        std::string result;
-        if(wselected)
-        {
-            std::wstring wselected_str = wselected;
-            result = internal::wstr2str(wselected_str);
-            CoTaskMemFree(wselected);
-        }
-        defaultFolder->Release();
-        pFileDialog->Release();
-        return result;
-    }
-#endif
-
     file_dialog(type in_type,
                 std::string const &title,
                 std::string const &default_path = "",
@@ -538,23 +469,25 @@ protected:
                         allow_multiselect, confirm_overwrite](int *exit_code) -> std::string
         {
             (void)exit_code;
-            wtitle = internal::str2wstr(title);
+            m_wtitle = internal::str2wstr(title);
+            m_wdefault_path = internal::str2wstr(default_path);
             auto wfilter_list = internal::str2wstr(filter_list);
-            wdefault_path = internal::str2wstr(default_path);
 
             // Folder selection uses a different method
             if (in_type == type::folder)
             {
                 auto status = CoInitializeEx(nullptr, COINIT_APARTMENTTHREADED);
-                if(IsWindowsVistaOrGreater())
+                if (IsWindowsVistaOrGreater())
                 {
-                    //on Vista and higher we should be able to use IFileDialog for folder selection
-                    IFileDialog *pFileDialog;
-                    HRESULT hr = CoCreateInstance(CLSID_FileOpenDialog, nullptr, CLSCTX_INPROC_SERVER, IID_PPV_ARGS(&pFileDialog));
+                    // On Vista and higher we should be able to use IFileDialog for folder selection
+                    IFileDialog *ifd;
+                    HRESULT hr = CoCreateInstance(CLSID_FileOpenDialog, nullptr,
+                                                  CLSCTX_INPROC_SERVER,
+                                                  IID_PPV_ARGS(&ifd));
 
-                    //in case CoCreateInstance fails (which it should not) will try legacy approach
+                    // In case CoCreateInstance fails (which it should not), try legacy approach
                     if (SUCCEEDED(hr))
-                        return select_folder_vista(pFileDialog);
+                        return select_folder_vista(ifd);
                 }
 
                 BROWSEINFOW bi;
@@ -592,15 +525,15 @@ protected:
             auto woutput = std::wstring(MAX_PATH * 256, L'\0');
             ofn.lpstrFile = (LPWSTR)woutput.data();
             ofn.nMaxFile = (DWORD)woutput.size();
-            if (!wdefault_path.empty())
+            if (!m_wdefault_path.empty())
             {
                 // Initial directory
-                ofn.lpstrInitialDir = wdefault_path.c_str();
+                ofn.lpstrInitialDir = m_wdefault_path.c_str();
                 // Initial file selection
-                ofn.lpstrFileTitle = (LPWSTR)wdefault_path.data();
-                ofn.nMaxFileTitle = (DWORD)wdefault_path.size();
+                ofn.lpstrFileTitle = (LPWSTR)m_wdefault_path.data();
+                ofn.nMaxFileTitle = (DWORD)m_wdefault_path.size();
             }
-            ofn.lpstrTitle = wtitle.c_str();
+            ofn.lpstrTitle = m_wtitle.c_str();
             ofn.Flags = OFN_NOCHANGEDIR | OFN_EXPLORER;
 
             if (in_type == type::save)
@@ -780,6 +713,73 @@ protected:
     }
 
 #if _WIN32
+    // Use a static function to pass as BFFCALLBACK for legacy folder select
+    static int __stdcall bffcallback(HWND hwnd, UINT uMsg, LPARAM, LPARAM pData)
+    {
+        auto inst = (file_dialog *)pData;
+        switch (uMsg)
+        {
+            case BFFM_INITIALIZED:
+                SendMessage(hwnd, BFFM_SETSELECTIONW, TRUE, (LPARAM)inst->m_wdefault_path.c_str());
+                break;
+            case BFFM_SELCHANGED:
+                // FIXME: this doesn’t seem to work with BIF_NEWDIALOGSTYLE
+                SendMessage(hwnd, BFFM_SETSTATUSTEXTW, 0, (LPARAM)inst->m_wtitle.c_str());
+                break;
+        }
+        return 0;
+    }
+
+    std::string select_folder_vista(IFileDialog *ifd)
+    {
+        std::string result;
+
+        IShellItem *folder;
+        HRESULT hr = SHCreateItemFromParsingName(m_wdefault_path.c_str(),
+                                                 nullptr,
+                                                 IID_PPV_ARGS(&folder));
+
+        // Set default folder if found. This only sets the default folder. If
+        // Windows has any info about the most recently selected folder, it
+        // will display it instead. Generally, calling SetFolder() to set the
+        // current directory “is not a good or expected user experience and
+        // should therefore be avoided”:
+        // https://docs.microsoft.com/windows/win32/api/shobjidl_core/nf-shobjidl_core-ifiledialog-setfolder
+        if (SUCCEEDED(hr))
+            ifd->SetDefaultFolder(folder);
+
+        // Set the dialog title and option to select folders
+        ifd->SetOptions(FOS_PICKFOLDERS);
+        ifd->SetTitle(m_wtitle.c_str());
+
+        hr = ifd->Show(GetForegroundWindow());
+        if (SUCCEEDED(hr))
+        {
+            IShellItem* item;
+            hr = ifd->GetResult(&item);
+            if (SUCCEEDED(hr))
+            {
+                wchar_t* wselected = nullptr;
+                item->GetDisplayName(SIGDN_FILESYSPATH, &wselected);
+                item->Release();
+
+                if (wselected)
+                {
+                    result = internal::wstr2str(std::wstring(wselected));
+                    CoTaskMemFree(wselected);
+                }
+            }
+        }
+
+        folder->Release();
+        ifd->Release();
+
+        return result;
+    }
+
+    std::wstring m_wtitle;
+    std::wstring m_wdefault_path;
+
     std::vector<std::string> m_vector_result;
 #endif
 };
