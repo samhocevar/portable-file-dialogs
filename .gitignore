@@ -3,3 +3,6 @@ example
 Debug
 Release
 *.vcxproj.user
+
+.idea
+cmake-build-*

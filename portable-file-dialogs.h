@@ -25,7 +25,6 @@
 #   define WIN32_LEAN_AND_MEAN 1
 #endif
 #include <windows.h>
-#include <VersionHelpers.h>
 #include <commdlg.h>
 #include <shlobj.h>
 #include <future>
@@ -163,6 +162,22 @@ static inline std::string wstr2str(std::wstring const &str)
     std::string ret(len, '\0');
     WideCharToMultiByte(CP_UTF8, 0, str.c_str(), (int)str.size(), (LPSTR)ret.data(), (int)ret.size(), nullptr, nullptr);
     return ret;
+}
+
+static inline bool is_vista()
+{
+    OSVERSIONINFOEXW osvi = { sizeof(osvi), 0, 0, 0, 0, {0}, 0, 0 };
+    DWORDLONG const dwlConditionMask = VerSetConditionMask(
+            VerSetConditionMask(
+                    VerSetConditionMask(
+                            0, VER_MAJORVERSION, VER_GREATER_EQUAL),
+                    VER_MINORVERSION, VER_GREATER_EQUAL),
+            VER_SERVICEPACKMAJOR, VER_GREATER_EQUAL);
+    osvi.dwMajorVersion = HIBYTE(_WIN32_WINNT_VISTA);
+    osvi.dwMinorVersion = LOBYTE(_WIN32_WINNT_VISTA);
+    osvi.wServicePackMajor = 0;
+
+    return VerifyVersionInfoW(&osvi, VER_MAJORVERSION | VER_MINORVERSION | VER_SERVICEPACKMAJOR, dwlConditionMask) != FALSE;
 }
 #endif
 
@@ -337,7 +352,7 @@ protected:
         if (!flags(flag::is_scanned))
         {
 #if _WIN32
-            flags(flag::has_ifiledialog) = IsWindowsVistaOrGreater();
+            flags(flag::has_ifiledialog) = is_vista();
 #elif !__APPLE__
             flags(flag::has_zenity) = check_program("zenity");
             flags(flag::has_matedialog) = check_program("matedialog");
@@ -499,10 +514,6 @@ protected:
                 bi.lpfn = &bffcallback;
                 bi.lParam = (LPARAM)this;
 
-                if (status == S_OK)
-                    bi.ulFlags |= BIF_NEWDIALOGSTYLE;
-                bi.ulFlags |= BIF_EDITBOX;
-                bi.ulFlags |= BIF_STATUSTEXT;
                 auto *list = SHBrowseForFolderW(&bi);
                 std::string ret;
                 if (list)
@@ -717,17 +728,13 @@ protected:
 
 #if _WIN32
     // Use a static function to pass as BFFCALLBACK for legacy folder select
-    static int __stdcall bffcallback(HWND hwnd, UINT uMsg, LPARAM, LPARAM pData)
+    static int CALLBACK bffcallback(HWND hwnd, UINT uMsg, LPARAM, LPARAM pData)
     {
         auto inst = (file_dialog *)pData;
         switch (uMsg)
         {
             case BFFM_INITIALIZED:
                 SendMessage(hwnd, BFFM_SETSELECTIONW, TRUE, (LPARAM)inst->m_wdefault_path.c_str());
-                break;
-            case BFFM_SELCHANGED:
-                // FIXME: this doesn’t seem to work with BIF_NEWDIALOGSTYLE
-                SendMessage(hwnd, BFFM_SETSTATUSTEXTW, 0, (LPARAM)inst->m_wtitle.c_str());
                 break;
         }
         return 0;
@@ -738,9 +745,23 @@ protected:
         std::string result;
 
         IShellItem *folder;
-        HRESULT hr = SHCreateItemFromParsingName(m_wdefault_path.c_str(),
-                                                 nullptr,
-                                                 IID_PPV_ARGS(&folder));
+
+        // load library at runtime so app doesn't link it at load time (which will fail on windows XP)
+        auto hm = LoadLibraryA("shell32.dll");
+        typedef HRESULT (WINAPI *MYPROC)(PCWSTR, IBindCtx*, REFIID, void**);
+        auto proc_create_item = (MYPROC) GetProcAddress(hm, "SHCreateItemFromParsingName");
+
+        if(!proc_create_item)
+        {
+            FreeLibrary(hm);
+            return "";
+        }
+
+        auto hr = proc_create_item(m_wdefault_path.c_str(),
+                                   nullptr,
+                                   IID_PPV_ARGS(&folder));
+
+        FreeLibrary(hm);
 
         // Set default folder if found. This only sets the default folder. If
         // Windows has any info about the most recently selected folder, it
@@ -749,7 +770,10 @@ protected:
         // should therefore be avoided”:
         // https://docs.microsoft.com/windows/win32/api/shobjidl_core/nf-shobjidl_core-ifiledialog-setfolder
         if (SUCCEEDED(hr))
+        {
             ifd->SetDefaultFolder(folder);
+            folder->Release();
+        }
 
         // Set the dialog title and option to select folders
         ifd->SetOptions(FOS_PICKFOLDERS);
@@ -774,7 +798,6 @@ protected:
             }
         }
 
-        folder->Release();
         ifd->Release();
 
         return result;
