@@ -10,6 +10,10 @@
 //  See http://www.wtfpl.net/ for more details.
 //
 
+// On Windows, use this define before including this header to disable
+// the manifest dependency linkage pragma
+//#define PFD_DISABLE_MANIFEST 1
+
 #pragma once
 
 #include <string>
@@ -21,6 +25,11 @@
 #include <chrono>
 
 #if _WIN32
+#if _MSC_VER && !PFD_DISABLE_MANIFEST
+#   pragma comment(linker, "\"/manifestdependency:type='win32' \
+        name='Microsoft.Windows.Common-Controls' version='6.0.0.0' \
+        processorArchitecture='*' publicKeyToken='6595b64144ccf1df' language='*'\"")
+#endif
 #ifndef WIN32_LEAN_AND_MEAN
 #   define WIN32_LEAN_AND_MEAN 1
 #endif
