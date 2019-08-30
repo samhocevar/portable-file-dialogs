@@ -167,7 +167,7 @@ static inline std::string wstr2str(std::wstring const &str)
 static inline bool is_vista()
 {
     OSVERSIONINFOEXW osvi = { sizeof(osvi), 0, 0, 0, 0, {0}, 0, 0 };
-    DWORDLONG const dwlConditionMask = VerSetConditionMask(
+    DWORDLONG const mask = VerSetConditionMask(
             VerSetConditionMask(
                     VerSetConditionMask(
                             0, VER_MAJORVERSION, VER_GREATER_EQUAL),
@@ -177,7 +177,7 @@ static inline bool is_vista()
     osvi.dwMinorVersion = LOBYTE(_WIN32_WINNT_VISTA);
     osvi.wServicePackMajor = 0;
 
-    return VerifyVersionInfoW(&osvi, VER_MAJORVERSION | VER_MINORVERSION | VER_SERVICEPACKMAJOR, dwlConditionMask) != FALSE;
+    return VerifyVersionInfoW(&osvi, VER_MAJORVERSION | VER_MINORVERSION | VER_SERVICEPACKMAJOR, mask) != FALSE;
 }
 #endif
 
@@ -514,6 +514,16 @@ protected:
                 bi.lpfn = &bffcallback;
                 bi.lParam = (LPARAM)this;
 
+                if (is_vista())
+                {
+                    // This hangs on Windows XP, as reported here:
+                    // https://github.com/samhocevar/portable-file-dialogs/pull/21
+                    if (status == S_OK)
+                        bi.ulFlags |= BIF_NEWDIALOGSTYLE;
+                    bi.ulFlags |= BIF_EDITBOX;
+                    bi.ulFlags |= BIF_STATUSTEXT;
+                }
+
                 auto *list = SHBrowseForFolderW(&bi);
                 std::string ret;
                 if (list)
@@ -749,9 +759,8 @@ protected:
         // load library at runtime so app doesn't link it at load time (which will fail on windows XP)
         auto hm = LoadLibraryA("shell32.dll");
         typedef HRESULT (WINAPI *MYPROC)(PCWSTR, IBindCtx*, REFIID, void**);
-        auto proc_create_item = (MYPROC) GetProcAddress(hm, "SHCreateItemFromParsingName");
-
-        if(!proc_create_item)
+        auto proc_create_item = (MYPROC)GetProcAddress(hm, "SHCreateItemFromParsingName");
+        if (!proc_create_item)
         {
             FreeLibrary(hm);
             return "";
@@ -760,7 +769,6 @@ protected:
         auto hr = proc_create_item(m_wdefault_path.c_str(),
                                    nullptr,
                                    IID_PPV_ARGS(&folder));
-
         FreeLibrary(hm);
 
         // Set default folder if found. This only sets the default folder. If
