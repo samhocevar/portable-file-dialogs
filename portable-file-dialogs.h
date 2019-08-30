@@ -36,7 +36,18 @@
 #include <windows.h>
 #include <commdlg.h>
 #include <shlobj.h>
+#include <shellapi.h>
 #include <future>
+
+// use this define before including this header to disable manifest dependency
+//#define _PFD_DISABLE_MANIFEST 1
+
+#if _MSC_VER && !_PFD_DISABLE_MANIFEST
+#pragma comment(linker,"\"/manifestdependency:type='win32' \
+name='Microsoft.Windows.Common-Controls' version='6.0.0.0' \
+processorArchitecture='*' publicKeyToken='6595b64144ccf1df' language='*'\"")
+#endif
+
 #else
 #include <cstdlib>  // for std::getenv()
 #include <fcntl.h>  // for fcntl()
@@ -188,6 +199,90 @@ static inline bool is_vista()
 
     return VerifyVersionInfoW(&osvi, VER_MAJORVERSION | VER_MINORVERSION | VER_SERVICEPACKMAJOR, mask) != FALSE;
 }
+
+class WinNotification
+{
+public:
+    void create(std::string const &title,
+                std::string const &message,
+                icon icon = icon::info)
+    {
+        destroy();
+
+        ZeroMemory(&_tnd, sizeof(NOTIFYICONDATAW));
+
+        //for XP support
+        _tnd.cbSize = NOTIFYICONDATAW_V2_SIZE;
+        _tnd.hWnd = nullptr;
+        _tnd.uID = 0;
+
+        _tnd.uFlags = NIF_MESSAGE | NIF_ICON | NIF_INFO;
+        // Flag Description:
+        // - NIF_ICON	 The hIcon member is valid.
+        // - NIF_MESSAGE The uCallbackMessage member is valid.
+        // - NIF_TIP	 The szTip member is valid.
+        // - NIF_STATE	 The dwState and dwStateMask members are valid.
+        // - NIF_INFO	 Use a balloon ToolTip instead of a standard ToolTip. The szInfo, uTimeout, szInfoTitle, and dwInfoFlags members are valid.
+        // - NIF_GUID	 Reserved.
+
+        switch (icon)
+        {
+            case icon::warning: _tnd.dwInfoFlags = NIIF_WARNING; break;
+            case icon::error: _tnd.dwInfoFlags = NIIF_ERROR; break;
+                /* case icon::info: */ default: _tnd.dwInfoFlags = NIIF_INFO; break;
+        }
+        // Flag Description
+        // - NIIF_ERROR     An error icon.
+        // - NIIF_INFO      An information icon.
+        // - NIIF_NONE      No icon.
+        // - NIIF_WARNING   A warning icon.
+        // - NIIF_ICON_MASK Version 6.0. Reserved.
+        // - NIIF_NOSOUND   Version 6.0. Do not play the associated sound. Applies only to balloon ToolTips
+
+        hicon = LoadIcon(nullptr, IDI_APPLICATION);
+        EnumResourceNames(nullptr, RT_GROUP_ICON, &icon_enum_callback, (LONG_PTR)(this));
+
+        _tnd.hIcon = hicon;
+        _tnd.uTimeout = 5000;
+
+        // FIXME check buffer length
+        lstrcpyW(_tnd.szInfoTitle, internal::str2wstr(title).c_str());
+        lstrcpyW(_tnd.szInfo, internal::str2wstr(message).c_str());
+
+        isCreated=true;
+        Shell_NotifyIconW(NIM_ADD, &_tnd); // add to the taskbar's status area
+    }
+    void destroy()
+    {
+        if(isCreated)
+            Shell_NotifyIconW(NIM_DELETE, &_tnd);
+        isCreated=false;
+    }
+    ~WinNotification()
+    {
+        destroy();
+    }
+
+private:
+    NOTIFYICONDATAW _tnd{};
+    bool isCreated=false;
+    HICON hicon;
+
+    static BOOL CALLBACK icon_enum_callback(
+            _In_opt_ HMODULE hModule,
+#ifdef UNICODE
+    _In_ LPCWSTR lpType,
+    _In_ LPWSTR lpName,
+#else
+            _In_ LPCSTR lpType,
+            _In_ LPSTR lpName,
+#endif // !UNICODE
+            _In_ LONG_PTR lParam)
+    {
+        ((WinNotification*) lParam)->hicon = LoadIcon(GetModuleHandle(nullptr), lpName);
+        return false;
+    }
+};
 #endif
 
 // This is necessary until C++20 which will have std::string::ends_with() etc.
@@ -890,24 +985,8 @@ public:
             icon = icon::info;
 
 #if _WIN32
-        int const delay = 5000;
-        auto script = "Add-Type -AssemblyName System.Windows.Forms;"
-                      "$exe = (Get-Process -id " + std::to_string(GetCurrentProcessId()) + ").Path;"
-                      "$popup = New-Object System.Windows.Forms.NotifyIcon;"
-                      "$popup.Icon = [System.Drawing.Icon]::ExtractAssociatedIcon($exe);"
-                      "$popup.Visible = $true;"
-                      "$popup.ShowBalloonTip(" + std::to_string(delay) + ", "
-                                               + powershell_quote(title) + ", "
-                                               + powershell_quote(message) + ", "
-                                           "'" + get_icon_name(icon) + "');"
-                      "Start-Sleep -Milliseconds " + std::to_string(delay) + ";"
-                      "$popup.Dispose();"; // Ensure the icon is cleaned up, but not too soon.
-        // Double fork to ensure the powershell script runs in the background
-        auto command = "powershell.exe -Command \""
-                       "    start-process powershell"
-                       "        -ArgumentList " + powershell_quote(script) +
-                       "        -WindowStyle hidden"
-                       "\"";
+        static internal::WinNotification notification;
+        notification.create(title, message, icon);
 #else
         auto command = desktop_helper();
 
@@ -929,12 +1008,12 @@ public:
                        " --passivepopup " + shell_quote(message) +
                        " 5";
         }
-#endif
 
         if (flags(flag::is_verbose))
             std::cerr << "pfd: " << command << std::endl;
 
         m_async->start(command);
+#endif
     }
 };
 
