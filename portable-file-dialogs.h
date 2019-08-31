@@ -10,10 +10,6 @@
 //  See http://www.wtfpl.net/ for more details.
 //
 
-// On Windows, use this define before including this header to disable
-// the manifest dependency linkage pragma
-//#define PFD_DISABLE_MANIFEST 1
-
 #pragma once
 
 #include <string>
@@ -25,11 +21,6 @@
 #include <chrono>
 
 #if _WIN32
-#if _MSC_VER && !PFD_DISABLE_MANIFEST
-#   pragma comment(linker, "\"/manifestdependency:type='win32' \
-        name='Microsoft.Windows.Common-Controls' version='6.0.0.0' \
-        processorArchitecture='*' publicKeyToken='6595b64144ccf1df' language='*'\"")
-#endif
 #ifndef WIN32_LEAN_AND_MEAN
 #   define WIN32_LEAN_AND_MEAN 1
 #endif
@@ -188,6 +179,54 @@ static inline bool is_vista()
 
     return VerifyVersionInfoW(&osvi, VER_MAJORVERSION | VER_MINORVERSION | VER_SERVICEPACKMAJOR, mask) != FALSE;
 }
+
+static inline ULONG_PTR set_context()
+{
+    // using approach as shown here:
+    // https://stackoverflow.com/a/10444161
+    // don't setting flag ACTCTX_FLAG_SET_PROCESS_DEFAULT since it causes crash
+    // with error default context is already set
+
+    TCHAR dir[MAX_PATH];
+    ULONG_PTR ulpActivationCookie = 0;
+    ACTCTX actCtx =
+            {
+                    sizeof(actCtx),
+                    ACTCTX_FLAG_RESOURCE_NAME_VALID | ACTCTX_FLAG_ASSEMBLY_DIRECTORY_VALID,
+                    TEXT("shell32.dll"), 0, 0, dir, (LPCTSTR)124
+            };
+    UINT cch = GetSystemDirectory(dir, sizeof(dir) / sizeof(*dir));
+    dir[cch] = TEXT('\0');
+
+
+    // this "hack" seems to be necessary for this code to work on windows XP
+	// without it dialogs do not show and close immediately. GetError() returns 0 so
+	// I don't know what causes this. I was not able to reproduce
+	// such behavior on windows 7 and 10 but just in case, let it be here for those versions too
+	// this hack is not required if other dialogs are used (they load this module automatically)
+	// but if only message boxes are used - it is required
+	static bool moduleLoaded = false;
+	if (!moduleLoaded)
+	{
+		HMODULE hDllInst = LoadLibrary(TEXT("comdlg32.dll"));
+		if (hDllInst)
+			FreeLibrary(hDllInst);
+        // need to load it only once
+		moduleLoaded = true;
+	}
+
+
+    auto hctx = CreateActCtx(&actCtx);
+    if(hctx != INVALID_HANDLE_VALUE)
+        ActivateActCtx(hctx, &ulpActivationCookie);
+    return ulpActivationCookie;
+}
+
+static inline void unset_context(ULONG_PTR ulpActivationCookie)
+{
+    DeactivateActCtx(0, ulpActivationCookie);
+}
+
 #endif
 
 // This is necessary until C++20 which will have std::string::ends_with() etc.
@@ -573,16 +612,29 @@ protected:
             {
                 if (confirm_overwrite)
                     ofn.Flags |= OFN_OVERWRITEPROMPT;
-                if (GetSaveFileNameW(&ofn) == 0)
-                    return "";
+                // using set context to apply new visual style (required for windows XP)
+				auto cookie = internal::set_context();
+				if (GetSaveFileNameW(&ofn) == 0)
+				{
+					internal::unset_context(cookie);
+					return "";
+				}
+				internal::unset_context(cookie);
                 return internal::wstr2str(woutput.c_str());
             }
 
             if (allow_multiselect)
                 ofn.Flags |= OFN_ALLOWMULTISELECT;
             ofn.Flags |= OFN_PATHMUSTEXIST;
-            if (GetOpenFileNameW(&ofn) == 0)
-                return "";
+
+            // using set context to apply new visual style (required for windows XP)
+			auto cookie = internal::set_context();
+			if (GetOpenFileNameW(&ofn) == 0)
+			{
+				internal::unset_context(cookie);
+				return "";
+			}
+			internal::unset_context(cookie);
 
             std::string prefix;
             for (wchar_t const *p = woutput.c_str(); *p; )
@@ -928,7 +980,10 @@ public:
         {
             auto wtext = internal::str2wstr(text);
             auto wtitle = internal::str2wstr(title);
+            // using set context to apply new visual style (required for all windows versions)
+            auto cookie = internal::set_context();
             *exit_code = MessageBoxW(GetForegroundWindow(), wtext.c_str(), wtitle.c_str(), style);
+            internal::unset_context(cookie);
             return "";
         });
 #else
