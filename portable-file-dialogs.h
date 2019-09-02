@@ -383,30 +383,9 @@ protected:
     public:
         new_style_context()
         {
-            // This “hack” seems to be necessary for this code to work on windows XP.
-            // Without it, dialogs do not show and close immediately. GetError()
-            // returns 0 so I don’t know what causes this. I was not able to reproduce
-            // this behavior on Windows 7 and 10 but just in case, let it be here for
-            // those versions too.
-            // This hack is not required if other dialogs are used (they load comdlg32
-            // automatically), only if message boxes are used.
-            static dll comdlg32("comdlg32.dll");
+            // Only create one activation context for the whole app lifetime.
+            static HANDLE hctx = create();
 
-            UINT cch = GetSystemDirectoryA(nullptr, 0);
-            std::string sys_dir('\0', cch);
-            GetSystemDirectoryA(&sys_dir[0], cch);
-
-            // Using approach as shown here: https://stackoverflow.com/a/10444161
-            // Do not set flag ACTCTX_FLAG_SET_PROCESS_DEFAULT, since it causes a crash
-            // with error “default context is already set”.
-            ACTCTXA act_ctx =
-            {
-                sizeof(act_ctx),
-                ACTCTX_FLAG_RESOURCE_NAME_VALID | ACTCTX_FLAG_ASSEMBLY_DIRECTORY_VALID,
-                "shell32.dll", 0, 0, sys_dir.c_str(), (LPCSTR)124,
-            };
-
-            auto hctx = CreateActCtxA(&act_ctx);
             if (hctx != INVALID_HANDLE_VALUE)
                 ActivateActCtx(hctx, &m_cookie);
         }
@@ -417,6 +396,34 @@ protected:
         }
 
     private:
+        HANDLE create()
+        {
+            // This “hack” seems to be necessary for this code to work on windows XP.
+            // Without it, dialogs do not show and close immediately. GetError()
+            // returns 0 so I don’t know what causes this. I was not able to reproduce
+            // this behavior on Windows 7 and 10 but just in case, let it be here for
+            // those versions too.
+            // This hack is not required if other dialogs are used (they load comdlg32
+            // automatically), only if message boxes are used.
+            dll comdlg32("comdlg32.dll");
+
+            // Using approach as shown here: https://stackoverflow.com/a/10444161
+            UINT len = ::GetSystemDirectoryA(nullptr, 0);
+            std::string sys_dir(len, '\0');
+            ::GetSystemDirectoryA(&sys_dir[0], len);
+
+            ACTCTXA act_ctx =
+            {
+                // Do not set flag ACTCTX_FLAG_SET_PROCESS_DEFAULT, since it causes a
+                // crash with error “default context is already set”.
+                sizeof(act_ctx),
+                ACTCTX_FLAG_RESOURCE_NAME_VALID | ACTCTX_FLAG_ASSEMBLY_DIRECTORY_VALID,
+                "shell32.dll", 0, 0, sys_dir.c_str(), (LPCSTR)124,
+            };
+
+            return ::CreateActCtxA(&act_ctx);
+        }
+
         ULONG_PTR m_cookie = 0;
     };
 #endif
