@@ -186,45 +186,42 @@ static inline ULONG_PTR set_context()
     // https://stackoverflow.com/a/10444161
     // don't setting flag ACTCTX_FLAG_SET_PROCESS_DEFAULT since it causes crash
     // with error default context is already set
-
     TCHAR dir[MAX_PATH];
-    ULONG_PTR ulpActivationCookie = 0;
-    ACTCTX actCtx =
-            {
-                    sizeof(actCtx),
-                    ACTCTX_FLAG_RESOURCE_NAME_VALID | ACTCTX_FLAG_ASSEMBLY_DIRECTORY_VALID,
-                    TEXT("shell32.dll"), 0, 0, dir, (LPCTSTR)124
-            };
+    ULONG_PTR act_cookie = 0;
+    ACTCTX act_ctx =
+    {
+        sizeof(act_ctx),
+        ACTCTX_FLAG_RESOURCE_NAME_VALID | ACTCTX_FLAG_ASSEMBLY_DIRECTORY_VALID,
+        TEXT("shell32.dll"), 0, 0, dir, (LPCTSTR)124
+    };
     UINT cch = GetSystemDirectory(dir, sizeof(dir) / sizeof(*dir));
     dir[cch] = TEXT('\0');
 
-
     // this "hack" seems to be necessary for this code to work on windows XP
-	// without it dialogs do not show and close immediately. GetError() returns 0 so
-	// I don't know what causes this. I was not able to reproduce
-	// such behavior on windows 7 and 10 but just in case, let it be here for those versions too
-	// this hack is not required if other dialogs are used (they load this module automatically)
-	// but if only message boxes are used - it is required
-	static bool moduleLoaded = false;
-	if (!moduleLoaded)
-	{
-		HMODULE hDllInst = LoadLibrary(TEXT("comdlg32.dll"));
-		if (hDllInst)
-			FreeLibrary(hDllInst);
+    // without it dialogs do not show and close immediately. GetError() returns 0 so
+    // I don't know what causes this. I was not able to reproduce
+    // such behavior on windows 7 and 10 but just in case, let it be here for those versions too
+    // this hack is not required if other dialogs are used (they load this module automatically)
+    // but if only message boxes are used - it is required
+    static bool module_loaded = false;
+    if (!module_loaded)
+    {
+        HMODULE dll_inst = LoadLibrary(TEXT("comdlg32.dll"));
+        if (dll_inst)
+            FreeLibrary(dll_inst);
         // need to load it only once
-		moduleLoaded = true;
-	}
+        module_loaded = true;
+    }
 
-
-    auto hctx = CreateActCtx(&actCtx);
+    auto hctx = CreateActCtx(&act_ctx);
     if(hctx != INVALID_HANDLE_VALUE)
-        ActivateActCtx(hctx, &ulpActivationCookie);
-    return ulpActivationCookie;
+        ActivateActCtx(hctx, &act_cookie);
+    return act_cookie;
 }
 
-static inline void unset_context(ULONG_PTR ulpActivationCookie)
+static inline void unset_context(ULONG_PTR act_cookie)
 {
-    DeactivateActCtx(0, ulpActivationCookie);
+    DeactivateActCtx(0, act_cookie);
 }
 
 #endif
@@ -613,13 +610,13 @@ protected:
                 if (confirm_overwrite)
                     ofn.Flags |= OFN_OVERWRITEPROMPT;
                 // using set context to apply new visual style (required for windows XP)
-				auto cookie = internal::set_context();
-				if (GetSaveFileNameW(&ofn) == 0)
-				{
-					internal::unset_context(cookie);
-					return "";
-				}
-				internal::unset_context(cookie);
+                auto cookie = internal::set_context();
+                if (GetSaveFileNameW(&ofn) == 0)
+                {
+                    internal::unset_context(cookie);
+                    return "";
+                }
+                internal::unset_context(cookie);
                 return internal::wstr2str(woutput.c_str());
             }
 
@@ -628,13 +625,13 @@ protected:
             ofn.Flags |= OFN_PATHMUSTEXIST;
 
             // using set context to apply new visual style (required for windows XP)
-			auto cookie = internal::set_context();
-			if (GetOpenFileNameW(&ofn) == 0)
-			{
-				internal::unset_context(cookie);
-				return "";
-			}
-			internal::unset_context(cookie);
+            auto cookie = internal::set_context();
+            if (GetOpenFileNameW(&ofn) == 0)
+            {
+                internal::unset_context(cookie);
+                return "";
+            }
+            internal::unset_context(cookie);
 
             std::string prefix;
             for (wchar_t const *p = woutput.c_str(); *p; )
