@@ -179,51 +179,6 @@ static inline bool is_vista()
 
     return VerifyVersionInfoW(&osvi, VER_MAJORVERSION | VER_MINORVERSION | VER_SERVICEPACKMAJOR, mask) != FALSE;
 }
-
-static inline ULONG_PTR set_context()
-{
-    // using approach as shown here:
-    // https://stackoverflow.com/a/10444161
-    // don't setting flag ACTCTX_FLAG_SET_PROCESS_DEFAULT since it causes crash
-    // with error default context is already set
-    TCHAR dir[MAX_PATH];
-    ULONG_PTR act_cookie = 0;
-    ACTCTX act_ctx =
-    {
-        sizeof(act_ctx),
-        ACTCTX_FLAG_RESOURCE_NAME_VALID | ACTCTX_FLAG_ASSEMBLY_DIRECTORY_VALID,
-        TEXT("shell32.dll"), 0, 0, dir, (LPCTSTR)124
-    };
-    UINT cch = GetSystemDirectory(dir, sizeof(dir) / sizeof(*dir));
-    dir[cch] = TEXT('\0');
-
-    // this "hack" seems to be necessary for this code to work on windows XP
-    // without it dialogs do not show and close immediately. GetError() returns 0 so
-    // I don't know what causes this. I was not able to reproduce
-    // such behavior on windows 7 and 10 but just in case, let it be here for those versions too
-    // this hack is not required if other dialogs are used (they load this module automatically)
-    // but if only message boxes are used - it is required
-    static bool module_loaded = false;
-    if (!module_loaded)
-    {
-        HMODULE dll_inst = LoadLibrary(TEXT("comdlg32.dll"));
-        if (dll_inst)
-            FreeLibrary(dll_inst);
-        // need to load it only once
-        module_loaded = true;
-    }
-
-    auto hctx = CreateActCtx(&act_ctx);
-    if(hctx != INVALID_HANDLE_VALUE)
-        ActivateActCtx(hctx, &act_cookie);
-    return act_cookie;
-}
-
-static inline void unset_context(ULONG_PTR act_cookie)
-{
-    DeactivateActCtx(0, act_cookie);
-}
-
 #endif
 
 // This is necessary until C++20 which will have std::string::ends_with() etc.
@@ -422,6 +377,55 @@ protected:
         HMODULE handle;
     };
 
+    // Helper class around CreateActCtx() and ActivateActCtx()
+    class new_style_context
+    {
+    public:
+        new_style_context()
+        {
+            // using approach as shown here:
+            // https://stackoverflow.com/a/10444161
+            // don't setting flag ACTCTX_FLAG_SET_PROCESS_DEFAULT since it causes crash
+            // with error default context is already set
+            TCHAR dir[MAX_PATH];
+            ACTCTX act_ctx =
+            {
+                sizeof(act_ctx),
+                ACTCTX_FLAG_RESOURCE_NAME_VALID | ACTCTX_FLAG_ASSEMBLY_DIRECTORY_VALID,
+                TEXT("shell32.dll"), 0, 0, dir, (LPCTSTR)124
+            };
+            UINT cch = GetSystemDirectory(dir, sizeof(dir) / sizeof(*dir));
+            dir[cch] = TEXT('\0');
+
+            // this "hack" seems to be necessary for this code to work on windows XP
+            // without it dialogs do not show and close immediately. GetError() returns 0 so
+            // I don't know what causes this. I was not able to reproduce
+            // such behavior on windows 7 and 10 but just in case, let it be here for those versions too
+            // this hack is not required if other dialogs are used (they load this module automatically)
+            // but if only message boxes are used - it is required
+            static bool module_loaded = false;
+            if (!module_loaded)
+            {
+                HMODULE dll_inst = LoadLibrary(TEXT("comdlg32.dll"));
+                if (dll_inst)
+                    FreeLibrary(dll_inst);
+                // need to load it only once
+                module_loaded = true;
+            }
+
+            auto hctx = CreateActCtx(&act_ctx);
+            if(hctx != INVALID_HANDLE_VALUE)
+                ActivateActCtx(hctx, &m_cookie);
+        }
+
+        ~new_style_context()
+        {
+            DeactivateActCtx(0, m_cookie);
+        }
+
+    private:
+        ULONG_PTR m_cookie = 0;
+    };
 #endif
 };
 
@@ -659,15 +663,13 @@ protected:
             {
                 if (confirm_overwrite)
                     ofn.Flags |= OFN_OVERWRITEPROMPT;
+
                 // using set context to apply new visual style (required for windows XP)
-                auto cookie = internal::set_context();
+                new_style_context ctx;
+
                 dll::proc<BOOL WINAPI (LPOPENFILENAMEW )> get_save_file_name(comdlg32, "GetSaveFileNameW");
                 if (get_save_file_name(&ofn) == 0)
-                {
-                    internal::unset_context(cookie);
                     return "";
-                }
-                internal::unset_context(cookie);
                 return internal::wstr2str(woutput.c_str());
             }
 
@@ -676,14 +678,11 @@ protected:
             ofn.Flags |= OFN_PATHMUSTEXIST;
 
             // using set context to apply new visual style (required for windows XP)
-            auto cookie = internal::set_context();
+            new_style_context ctx;
+
             dll::proc<BOOL WINAPI (LPOPENFILENAMEW )> get_open_file_name(comdlg32, "GetOpenFileNameW");
             if (get_open_file_name(&ofn) == 0)
-            {
-                internal::unset_context(cookie);
                 return "";
-            }
-            internal::unset_context(cookie);
 
             std::string prefix;
             for (wchar_t const *p = woutput.c_str(); *p; )
@@ -1028,9 +1027,8 @@ public:
             auto wtext = internal::str2wstr(text);
             auto wtitle = internal::str2wstr(title);
             // using set context to apply new visual style (required for all windows versions)
-            auto cookie = internal::set_context();
+            new_style_context ctx;
             *exit_code = MessageBoxW(GetForegroundWindow(), wtext.c_str(), wtitle.c_str(), style);
-            internal::unset_context(cookie);
             return "";
         });
 #else
