@@ -38,16 +38,6 @@
 #include <shlobj.h>
 #include <shellapi.h>
 #include <future>
-
-// use this define before including this header to disable manifest dependency
-//#define _PFD_DISABLE_MANIFEST 1
-
-#if _MSC_VER && !_PFD_DISABLE_MANIFEST
-#pragma comment(linker,"\"/manifestdependency:type='win32' \
-name='Microsoft.Windows.Common-Controls' version='6.0.0.0' \
-processorArchitecture='*' publicKeyToken='6595b64144ccf1df' language='*'\"")
-#endif
-
 #else
 #include <cstdlib>  // for std::getenv()
 #include <fcntl.h>  // for fcntl()
@@ -209,27 +199,27 @@ public:
     {
         destroy();
 
-        ZeroMemory(&_tnd, sizeof(NOTIFYICONDATAW));
+        memset(&m_tnd, 0, sizeof(NOTIFYICONDATAW));
 
-        //for XP support
-        _tnd.cbSize = NOTIFYICONDATAW_V2_SIZE;
-        _tnd.hWnd = nullptr;
-        _tnd.uID = 0;
+        // For XP support
+        m_tnd.cbSize = NOTIFYICONDATAW_V2_SIZE;
+        m_tnd.hWnd = nullptr;
+        m_tnd.uID = 0;
 
-        _tnd.uFlags = NIF_MESSAGE | NIF_ICON | NIF_INFO;
+        m_tnd.uFlags = NIF_MESSAGE | NIF_ICON | NIF_INFO;
         // Flag Description:
-        // - NIF_ICON	 The hIcon member is valid.
+        // - NIF_ICON    The hIcon member is valid.
         // - NIF_MESSAGE The uCallbackMessage member is valid.
-        // - NIF_TIP	 The szTip member is valid.
-        // - NIF_STATE	 The dwState and dwStateMask members are valid.
-        // - NIF_INFO	 Use a balloon ToolTip instead of a standard ToolTip. The szInfo, uTimeout, szInfoTitle, and dwInfoFlags members are valid.
-        // - NIF_GUID	 Reserved.
+        // - NIF_TIP     The szTip member is valid.
+        // - NIF_STATE   The dwState and dwStateMask members are valid.
+        // - NIF_INFO    Use a balloon ToolTip instead of a standard ToolTip. The szInfo, uTimeout, szInfoTitle, and dwInfoFlags members are valid.
+        // - NIF_GUID    Reserved.
 
         switch (icon)
         {
-            case icon::warning: _tnd.dwInfoFlags = NIIF_WARNING; break;
-            case icon::error: _tnd.dwInfoFlags = NIIF_ERROR; break;
-                /* case icon::info: */ default: _tnd.dwInfoFlags = NIIF_INFO; break;
+            case icon::warning: m_tnd.dwInfoFlags = NIIF_WARNING; break;
+            case icon::error: m_tnd.dwInfoFlags = NIIF_ERROR; break;
+            /* case icon::info: */ default: m_tnd.dwInfoFlags = NIIF_INFO; break;
         }
         // Flag Description
         // - NIIF_ERROR     An error icon.
@@ -239,49 +229,47 @@ public:
         // - NIIF_ICON_MASK Version 6.0. Reserved.
         // - NIIF_NOSOUND   Version 6.0. Do not play the associated sound. Applies only to balloon ToolTips
 
-        hicon = LoadIcon(nullptr, IDI_APPLICATION);
-        EnumResourceNames(nullptr, RT_GROUP_ICON, &icon_enum_callback, (LONG_PTR)(this));
+        m_tnd.hIcon = ::LoadIcon(nullptr, IDI_APPLICATION);
+        EnumResourceNames(nullptr, RT_GROUP_ICON, &icon_enum_callback, (LONG_PTR)this);
 
-        _tnd.hIcon = hicon;
-        _tnd.uTimeout = 5000;
+        m_tnd.uTimeout = 5000;
 
         // FIXME check buffer length
-        lstrcpyW(_tnd.szInfoTitle, internal::str2wstr(title).c_str());
-        lstrcpyW(_tnd.szInfo, internal::str2wstr(message).c_str());
+        lstrcpyW(m_tnd.szInfoTitle, internal::str2wstr(title).c_str());
+        lstrcpyW(m_tnd.szInfo, internal::str2wstr(message).c_str());
 
-        isCreated=true;
-        Shell_NotifyIconW(NIM_ADD, &_tnd); // add to the taskbar's status area
+        m_created = true;
+        Shell_NotifyIconW(NIM_ADD, &m_tnd); // add to the taskbar's status area
     }
-    void destroy()
-    {
-        if(isCreated)
-            Shell_NotifyIconW(NIM_DELETE, &_tnd);
-        isCreated=false;
-    }
+
     ~WinNotification()
     {
         destroy();
     }
 
 private:
-    NOTIFYICONDATAW _tnd{};
-    bool isCreated=false;
-    HICON hicon;
+    void destroy()
+    {
+        if (m_created)
+            Shell_NotifyIconW(NIM_DELETE, &m_tnd);
+        m_created = false;
+    }
 
     static BOOL CALLBACK icon_enum_callback(
-            _In_opt_ HMODULE hModule,
+            _In_opt_ HMODULE,
 #ifdef UNICODE
-    _In_ LPCWSTR lpType,
-    _In_ LPWSTR lpName,
+            _In_ LPCWSTR, _In_ LPWSTR lpName,
 #else
-            _In_ LPCSTR lpType,
-            _In_ LPSTR lpName,
+            _In_ LPCSTR, _In_ LPSTR lpName,
 #endif // !UNICODE
             _In_ LONG_PTR lParam)
     {
-        ((WinNotification*) lParam)->hicon = LoadIcon(GetModuleHandle(nullptr), lpName);
+        ((WinNotification *)lParam)->m_tnd.hIcon = ::LoadIcon(GetModuleHandle(nullptr), lpName);
         return false;
     }
+
+    NOTIFYICONDATAW m_tnd {};
+    bool m_created = false;
 };
 #endif
 
