@@ -180,81 +180,6 @@ static inline bool is_vista()
 
     return VerifyVersionInfoW(&osvi, VER_MAJORVERSION | VER_MINORVERSION | VER_SERVICEPACKMAJOR, mask) != FALSE;
 }
-
-class WinNotification
-{
-public:
-    void create(std::string const &title,
-                std::string const &message,
-                icon icon = icon::info)
-    {
-        destroy();
-
-        memset(&m_tnd, 0, sizeof(NOTIFYICONDATAW));
-
-        // For XP support
-        m_tnd.cbSize = NOTIFYICONDATAW_V2_SIZE;
-        m_tnd.hWnd = nullptr;
-        m_tnd.uID = 0;
-
-        m_tnd.uFlags = NIF_MESSAGE | NIF_ICON | NIF_INFO;
-        // Flag Description:
-        // - NIF_ICON    The hIcon member is valid.
-        // - NIF_MESSAGE The uCallbackMessage member is valid.
-        // - NIF_TIP     The szTip member is valid.
-        // - NIF_STATE   The dwState and dwStateMask members are valid.
-        // - NIF_INFO    Use a balloon ToolTip instead of a standard ToolTip. The szInfo, uTimeout, szInfoTitle, and dwInfoFlags members are valid.
-        // - NIF_GUID    Reserved.
-
-        switch (icon)
-        {
-            case icon::warning: m_tnd.dwInfoFlags = NIIF_WARNING; break;
-            case icon::error: m_tnd.dwInfoFlags = NIIF_ERROR; break;
-            /* case icon::info: */ default: m_tnd.dwInfoFlags = NIIF_INFO; break;
-        }
-        // Flag Description
-        // - NIIF_ERROR     An error icon.
-        // - NIIF_INFO      An information icon.
-        // - NIIF_NONE      No icon.
-        // - NIIF_WARNING   A warning icon.
-        // - NIIF_ICON_MASK Version 6.0. Reserved.
-        // - NIIF_NOSOUND   Version 6.0. Do not play the associated sound. Applies only to balloon ToolTips
-
-        m_tnd.hIcon = ::LoadIcon(nullptr, IDI_APPLICATION);
-        ::EnumResourceNamesW(nullptr, RT_GROUP_ICON, &icon_enum_callback, (LONG_PTR)this);
-
-        m_tnd.uTimeout = 5000;
-
-        // FIXME check buffer length
-        lstrcpyW(m_tnd.szInfoTitle, internal::str2wstr(title).c_str());
-        lstrcpyW(m_tnd.szInfo, internal::str2wstr(message).c_str());
-
-        m_created = true;
-        Shell_NotifyIconW(NIM_ADD, &m_tnd); // add to the taskbar's status area
-    }
-
-    ~WinNotification()
-    {
-        destroy();
-    }
-
-private:
-    void destroy()
-    {
-        if (m_created)
-            Shell_NotifyIconW(NIM_DELETE, &m_tnd);
-        m_created = false;
-    }
-
-    static BOOL CALLBACK icon_enum_callback(HMODULE, LPCWSTR, LPWSTR lpName, LONG_PTR lParam)
-    {
-        ((WinNotification *)lParam)->m_tnd.hIcon = ::LoadIcon(GetModuleHandle(nullptr), lpName);
-        return false;
-    }
-
-    NOTIFYICONDATAW m_tnd {};
-    bool m_created = false;
-};
 #endif
 
 // This is necessary until C++20 which will have std::string::ends_with() etc.
@@ -1014,8 +939,67 @@ public:
             icon = icon::info;
 
 #if _WIN32
-        static internal::WinNotification notification;
-        notification.create(title, message, icon);
+        // Use a static shared pointer for notify_icon so that we can delete
+        // it whenever we need to display a new one, and we can also wait
+        // until the program has finished running.
+        struct notify_icon_data : public NOTIFYICONDATAW
+        {
+            ~notify_icon_data() { Shell_NotifyIconW(NIM_DELETE, this); }
+        };
+
+        static std::shared_ptr<notify_icon_data> nid;
+
+        // Release the previous notification icon, if any, and allocate a new
+        // one. Note that std::make_shared() does value initialization, so there
+	// is no need to memset the structure.
+        nid = nullptr;
+        nid = std::make_shared<notify_icon_data>();
+
+        // For XP support
+        nid->cbSize = NOTIFYICONDATAW_V2_SIZE;
+        nid->hWnd = nullptr;
+        nid->uID = 0;
+
+        // Flag Description:
+        // - NIF_ICON    The hIcon member is valid.
+        // - NIF_MESSAGE The uCallbackMessage member is valid.
+        // - NIF_TIP     The szTip member is valid.
+        // - NIF_STATE   The dwState and dwStateMask members are valid.
+        // - NIF_INFO    Use a balloon ToolTip instead of a standard ToolTip. The szInfo, uTimeout, szInfoTitle, and dwInfoFlags members are valid.
+        // - NIF_GUID    Reserved.
+        nid->uFlags = NIF_MESSAGE | NIF_ICON | NIF_INFO;
+
+        // Flag Description
+        // - NIIF_ERROR     An error icon.
+        // - NIIF_INFO      An information icon.
+        // - NIIF_NONE      No icon.
+        // - NIIF_WARNING   A warning icon.
+        // - NIIF_ICON_MASK Version 6.0. Reserved.
+        // - NIIF_NOSOUND   Version 6.0. Do not play the associated sound. Applies only to balloon ToolTips
+        switch (icon)
+        {
+            case icon::warning: nid->dwInfoFlags = NIIF_WARNING; break;
+            case icon::error: nid->dwInfoFlags = NIIF_ERROR; break;
+            /* case icon::info: */ default: nid->dwInfoFlags = NIIF_INFO; break;
+        }
+
+        ENUMRESNAMEPROC icon_enum_callback = [](HMODULE, LPCTSTR, LPTSTR lpName, LONG_PTR lParam) -> BOOL
+        {
+            ((NOTIFYICONDATAW *)lParam)->hIcon = ::LoadIcon(GetModuleHandle(nullptr), lpName);
+            return false;
+        };
+
+        nid->hIcon = ::LoadIcon(nullptr, IDI_APPLICATION);
+        ::EnumResourceNames(nullptr, RT_GROUP_ICON, icon_enum_callback, (LONG_PTR)nid.get());
+
+        nid->uTimeout = 5000;
+
+        // FIXME check buffer length
+        lstrcpyW(nid->szInfoTitle, internal::str2wstr(title).c_str());
+        lstrcpyW(nid->szInfo, internal::str2wstr(message).c_str());
+
+        // Display the new icon
+        Shell_NotifyIconW(NIM_ADD, nid.get());
 #else
         auto command = desktop_helper();
 
