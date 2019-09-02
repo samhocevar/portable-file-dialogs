@@ -10,10 +10,6 @@
 //  See http://www.wtfpl.net/ for more details.
 //
 
-// On Windows, use this define before including this header to disable
-// the manifest dependency linkage pragma
-//#define PFD_DISABLE_MANIFEST 1
-
 #pragma once
 
 #include <string>
@@ -25,11 +21,6 @@
 #include <chrono>
 
 #if _WIN32
-#if _MSC_VER && !PFD_DISABLE_MANIFEST
-#   pragma comment(linker, "\"/manifestdependency:type='win32' \
-        name='Microsoft.Windows.Common-Controls' version='6.0.0.0' \
-        processorArchitecture='*' publicKeyToken='6595b64144ccf1df' language='*'\"")
-#endif
 #ifndef WIN32_LEAN_AND_MEAN
 #   define WIN32_LEAN_AND_MEAN 1
 #endif
@@ -386,6 +377,48 @@ protected:
         HMODULE handle;
     };
 
+    // Helper class around CreateActCtx() and ActivateActCtx()
+    class new_style_context
+    {
+    public:
+        new_style_context()
+        {
+            // This “hack” seems to be necessary for this code to work on windows XP.
+            // Without it, dialogs do not show and close immediately. GetError()
+            // returns 0 so I don’t know what causes this. I was not able to reproduce
+            // this behavior on Windows 7 and 10 but just in case, let it be here for
+            // those versions too.
+            // This hack is not required if other dialogs are used (they load comdlg32
+            // automatically), only if message boxes are used.
+            static dll comdlg32("comdlg32.dll");
+
+            // using approach as shown here:
+            // https://stackoverflow.com/a/10444161
+            // don't setting flag ACTCTX_FLAG_SET_PROCESS_DEFAULT since it causes crash
+            // with error default context is already set
+            TCHAR dir[MAX_PATH];
+            ACTCTX act_ctx =
+            {
+                sizeof(act_ctx),
+                ACTCTX_FLAG_RESOURCE_NAME_VALID | ACTCTX_FLAG_ASSEMBLY_DIRECTORY_VALID,
+                TEXT("shell32.dll"), 0, 0, dir, (LPCTSTR)124
+            };
+            UINT cch = GetSystemDirectory(dir, sizeof(dir) / sizeof(*dir));
+            dir[cch] = TEXT('\0');
+
+            auto hctx = CreateActCtx(&act_ctx);
+            if(hctx != INVALID_HANDLE_VALUE)
+                ActivateActCtx(hctx, &m_cookie);
+        }
+
+        ~new_style_context()
+        {
+            DeactivateActCtx(0, m_cookie);
+        }
+
+    private:
+        ULONG_PTR m_cookie = 0;
+    };
 #endif
 };
 
@@ -623,6 +656,10 @@ protected:
             {
                 if (confirm_overwrite)
                     ofn.Flags |= OFN_OVERWRITEPROMPT;
+
+                // using set context to apply new visual style (required for windows XP)
+                new_style_context ctx;
+
                 dll::proc<BOOL WINAPI (LPOPENFILENAMEW )> get_save_file_name(comdlg32, "GetSaveFileNameW");
                 if (get_save_file_name(&ofn) == 0)
                     return "";
@@ -632,6 +669,10 @@ protected:
             if (allow_multiselect)
                 ofn.Flags |= OFN_ALLOWMULTISELECT;
             ofn.Flags |= OFN_PATHMUSTEXIST;
+
+            // using set context to apply new visual style (required for windows XP)
+            new_style_context ctx;
+
             dll::proc<BOOL WINAPI (LPOPENFILENAMEW )> get_open_file_name(comdlg32, "GetOpenFileNameW");
             if (get_open_file_name(&ofn) == 0)
                 return "";
@@ -978,6 +1019,8 @@ public:
         {
             auto wtext = internal::str2wstr(text);
             auto wtitle = internal::str2wstr(title);
+            // using set context to apply new visual style (required for all windows versions)
+            new_style_context ctx;
             *exit_code = MessageBoxW(GetForegroundWindow(), wtext.c_str(), wtitle.c_str(), style);
             return "";
         });
