@@ -343,7 +343,53 @@ private:
 #endif
 };
 
-class dialog : protected settings
+class platform
+{
+protected:
+#if _WIN32
+    // Helper class around LoadLibraryA() and GetProcAddress() with some safety
+    class dll
+    {
+    public:
+        dll(std::string const &name)
+          : handle(::LoadLibraryA(name.c_str()))
+        {}
+
+        ~dll()
+        {
+            if (handle)
+                ::FreeLibrary(handle);
+        }
+
+        template<typename T> class proc
+        {
+        public:
+            proc(dll const &lib, std::string const &sym)
+              : m_proc(reinterpret_cast<T *>(::GetProcAddress(lib.handle, sym.c_str())))
+            {}
+
+            operator bool() const
+            {
+                return m_proc != nullptr;
+            }
+
+            operator T *() const
+            {
+                return m_proc;
+            }
+
+        private:
+            T *m_proc;
+        };
+
+    private:
+        HMODULE handle;
+    };
+
+#endif
+};
+
+class dialog : protected settings, protected platform
 {
     friend class pfd::notify;
     friend class pfd::message;
@@ -765,20 +811,17 @@ protected:
 
         IShellItem *folder;
 
-        // load library at runtime so app doesn't link it at load time (which will fail on windows XP)
-        auto hm = LoadLibraryA("shell32.dll");
-        typedef HRESULT (WINAPI *MYPROC)(PCWSTR, IBindCtx*, REFIID, void**);
-        auto proc_create_item = (MYPROC)GetProcAddress(hm, "SHCreateItemFromParsingName");
-        if (!proc_create_item)
-        {
-            FreeLibrary(hm);
-            return "";
-        }
+        // Load library at runtime so app doesn't link it at load time (which will fail on windows XP)
+        dll shell32("shell32.dll");
+        dll::proc<HRESULT WINAPI (PCWSTR, IBindCtx*, REFIID, void**)>
+            create_item(shell32, "SHCreateItemFromParsingName");
 
-        auto hr = proc_create_item(m_wdefault_path.c_str(),
-                                   nullptr,
-                                   IID_PPV_ARGS(&folder));
-        FreeLibrary(hm);
+        if (!create_item)
+            return "";
+
+        auto hr = create_item(m_wdefault_path.c_str(),
+                              nullptr,
+                              IID_PPV_ARGS(&folder));
 
         // Set default folder if found. This only sets the default folder. If
         // Windows has any info about the most recently selected folder, it
