@@ -392,22 +392,22 @@ protected:
             // automatically), only if message boxes are used.
             static dll comdlg32("comdlg32.dll");
 
-            // using approach as shown here:
-            // https://stackoverflow.com/a/10444161
-            // don't setting flag ACTCTX_FLAG_SET_PROCESS_DEFAULT since it causes crash
-            // with error default context is already set
-            TCHAR dir[MAX_PATH];
-            ACTCTX act_ctx =
+            UINT cch = GetSystemDirectoryA(nullptr, 0);
+            std::string sys_dir('\0', cch);
+            GetSystemDirectoryA(&sys_dir[0], cch);
+
+            // Using approach as shown here: https://stackoverflow.com/a/10444161
+            // Do not set flag ACTCTX_FLAG_SET_PROCESS_DEFAULT, since it causes a crash
+            // with error “default context is already set”.
+            ACTCTXA act_ctx =
             {
                 sizeof(act_ctx),
                 ACTCTX_FLAG_RESOURCE_NAME_VALID | ACTCTX_FLAG_ASSEMBLY_DIRECTORY_VALID,
-                TEXT("shell32.dll"), 0, 0, dir, (LPCTSTR)124
+                "shell32.dll", 0, 0, sys_dir.c_str(), (LPCSTR)124,
             };
-            UINT cch = GetSystemDirectory(dir, sizeof(dir) / sizeof(*dir));
-            dir[cch] = TEXT('\0');
 
-            auto hctx = CreateActCtx(&act_ctx);
-            if(hctx != INVALID_HANDLE_VALUE)
+            auto hctx = CreateActCtxA(&act_ctx);
+            if (hctx != INVALID_HANDLE_VALUE)
                 ActivateActCtx(hctx, &m_cookie);
         }
 
