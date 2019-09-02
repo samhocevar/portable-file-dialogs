@@ -549,14 +549,16 @@ protected:
             // Folder selection uses a different method
             if (in_type == type::folder)
             {
-                auto status = CoInitializeEx(nullptr, COINIT_APARTMENTTHREADED);
+                dll ole32("ole32.dll");
+
+                auto status = dll::proc<HRESULT WINAPI (LPVOID, DWORD)>(ole32, "CoInitializeEx")
+                                  (nullptr, COINIT_APARTMENTTHREADED);
                 if (flags(flag::has_ifiledialog))
                 {
                     // On Vista and higher we should be able to use IFileDialog for folder selection
                     IFileDialog *ifd;
-                    HRESULT hr = CoCreateInstance(CLSID_FileOpenDialog, nullptr,
-                                                  CLSCTX_INPROC_SERVER,
-                                                  IID_PPV_ARGS(&ifd));
+                    HRESULT hr = dll::proc<HRESULT WINAPI (REFCLSID, LPUNKNOWN, DWORD, REFIID, LPVOID *)>(ole32, "CoCreateInstance")
+                                     (CLSID_FileOpenDialog, nullptr, CLSCTX_INPROC_SERVER, IID_PPV_ARGS(&ifd));
 
                     // In case CoCreateInstance fails (which it should not), try legacy approach
                     if (SUCCEEDED(hr))
@@ -585,12 +587,12 @@ protected:
                 {
                     auto buffer = new wchar_t[MAX_PATH];
                     SHGetPathFromIDListW(list, buffer);
-                    CoTaskMemFree(list);
+                    dll::proc<void WINAPI (LPVOID)>(ole32, "CoTaskMemFree")(list);
                     ret = internal::wstr2str(buffer);
                     delete[] buffer;
                 }
                 if (status == S_OK)
-                    CoUninitialize();
+                    dll::proc<void WINAPI ()>(ole32, "CoUninitialize")();
                 return ret;
             }
 
@@ -615,11 +617,14 @@ protected:
             ofn.lpstrTitle = m_wtitle.c_str();
             ofn.Flags = OFN_NOCHANGEDIR | OFN_EXPLORER;
 
+            dll comdlg32("comdlg32.dll");
+
             if (in_type == type::save)
             {
                 if (confirm_overwrite)
                     ofn.Flags |= OFN_OVERWRITEPROMPT;
-                if (GetSaveFileNameW(&ofn) == 0)
+                dll::proc<BOOL WINAPI (LPOPENFILENAMEW )> get_save_file_name(comdlg32, "GetSaveFileNameW");
+                if (get_save_file_name(&ofn) == 0)
                     return "";
                 return internal::wstr2str(woutput.c_str());
             }
@@ -627,7 +632,8 @@ protected:
             if (allow_multiselect)
                 ofn.Flags |= OFN_ALLOWMULTISELECT;
             ofn.Flags |= OFN_PATHMUSTEXIST;
-            if (GetOpenFileNameW(&ofn) == 0)
+            dll::proc<BOOL WINAPI (LPOPENFILENAMEW )> get_open_file_name(comdlg32, "GetOpenFileNameW");
+            if (get_open_file_name(&ofn) == 0)
                 return "";
 
             std::string prefix;
@@ -853,7 +859,8 @@ protected:
                 if (wselected)
                 {
                     result = internal::wstr2str(std::wstring(wselected));
-                    CoTaskMemFree(wselected);
+                    dll ole32("ole32.dll");
+                    dll::proc<void WINAPI (LPVOID)>(ole32, "CoTaskMemFree")(wselected);
                 }
             }
         }
