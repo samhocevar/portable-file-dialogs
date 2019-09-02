@@ -379,7 +379,53 @@ private:
 #endif
 };
 
-class dialog : protected settings
+class platform
+{
+protected:
+#if _WIN32
+    // Helper class around LoadLibraryA() and GetProcAddress() with some safety
+    class dll
+    {
+    public:
+        dll(std::string const &name)
+          : handle(::LoadLibraryA(name.c_str()))
+        {}
+
+        ~dll()
+        {
+            if (handle)
+                ::FreeLibrary(handle);
+        }
+
+        template<typename T> class proc
+        {
+        public:
+            proc(dll const &lib, std::string const &sym)
+              : m_proc(reinterpret_cast<T *>(::GetProcAddress(lib.handle, sym.c_str())))
+            {}
+
+            operator bool() const
+            {
+                return m_proc != nullptr;
+            }
+
+            operator T *() const
+            {
+                return m_proc;
+            }
+
+        private:
+            T *m_proc;
+        };
+
+    private:
+        HMODULE handle;
+    };
+
+#endif
+};
+
+class dialog : protected settings, protected platform
 {
     friend class pfd::notify;
     friend class pfd::message;
@@ -539,14 +585,16 @@ protected:
             // Folder selection uses a different method
             if (in_type == type::folder)
             {
-                auto status = CoInitializeEx(nullptr, COINIT_APARTMENTTHREADED);
+                dll ole32("ole32.dll");
+
+                auto status = dll::proc<HRESULT WINAPI (LPVOID, DWORD)>(ole32, "CoInitializeEx")
+                                  (nullptr, COINIT_APARTMENTTHREADED);
                 if (flags(flag::has_ifiledialog))
                 {
                     // On Vista and higher we should be able to use IFileDialog for folder selection
                     IFileDialog *ifd;
-                    HRESULT hr = CoCreateInstance(CLSID_FileOpenDialog, nullptr,
-                                                  CLSCTX_INPROC_SERVER,
-                                                  IID_PPV_ARGS(&ifd));
+                    HRESULT hr = dll::proc<HRESULT WINAPI (REFCLSID, LPUNKNOWN, DWORD, REFIID, LPVOID *)>(ole32, "CoCreateInstance")
+                                     (CLSID_FileOpenDialog, nullptr, CLSCTX_INPROC_SERVER, IID_PPV_ARGS(&ifd));
 
                     // In case CoCreateInstance fails (which it should not), try legacy approach
                     if (SUCCEEDED(hr))
@@ -575,12 +623,12 @@ protected:
                 {
                     auto buffer = new wchar_t[MAX_PATH];
                     SHGetPathFromIDListW(list, buffer);
-                    CoTaskMemFree(list);
+                    dll::proc<void WINAPI (LPVOID)>(ole32, "CoTaskMemFree")(list);
                     ret = internal::wstr2str(buffer);
                     delete[] buffer;
                 }
                 if (status == S_OK)
-                    CoUninitialize();
+                    dll::proc<void WINAPI ()>(ole32, "CoUninitialize")();
                 return ret;
             }
 
@@ -605,13 +653,16 @@ protected:
             ofn.lpstrTitle = m_wtitle.c_str();
             ofn.Flags = OFN_NOCHANGEDIR | OFN_EXPLORER;
 
+            dll comdlg32("comdlg32.dll");
+
             if (in_type == type::save)
             {
                 if (confirm_overwrite)
                     ofn.Flags |= OFN_OVERWRITEPROMPT;
                 // using set context to apply new visual style (required for windows XP)
                 auto cookie = internal::set_context();
-                if (GetSaveFileNameW(&ofn) == 0)
+                dll::proc<BOOL WINAPI (LPOPENFILENAMEW )> get_save_file_name(comdlg32, "GetSaveFileNameW");
+                if (get_save_file_name(&ofn) == 0)
                 {
                     internal::unset_context(cookie);
                     return "";
@@ -626,7 +677,8 @@ protected:
 
             // using set context to apply new visual style (required for windows XP)
             auto cookie = internal::set_context();
-            if (GetOpenFileNameW(&ofn) == 0)
+            dll::proc<BOOL WINAPI (LPOPENFILENAMEW )> get_open_file_name(comdlg32, "GetOpenFileNameW");
+            if (get_open_file_name(&ofn) == 0)
             {
                 internal::unset_context(cookie);
                 return "";
@@ -814,20 +866,17 @@ protected:
 
         IShellItem *folder;
 
-        // load library at runtime so app doesn't link it at load time (which will fail on windows XP)
-        auto hm = LoadLibraryA("shell32.dll");
-        typedef HRESULT (WINAPI *MYPROC)(PCWSTR, IBindCtx*, REFIID, void**);
-        auto proc_create_item = (MYPROC)GetProcAddress(hm, "SHCreateItemFromParsingName");
-        if (!proc_create_item)
-        {
-            FreeLibrary(hm);
-            return "";
-        }
+        // Load library at runtime so app doesn't link it at load time (which will fail on windows XP)
+        dll shell32("shell32.dll");
+        dll::proc<HRESULT WINAPI (PCWSTR, IBindCtx*, REFIID, void**)>
+            create_item(shell32, "SHCreateItemFromParsingName");
 
-        auto hr = proc_create_item(m_wdefault_path.c_str(),
-                                   nullptr,
-                                   IID_PPV_ARGS(&folder));
-        FreeLibrary(hm);
+        if (!create_item)
+            return "";
+
+        auto hr = create_item(m_wdefault_path.c_str(),
+                              nullptr,
+                              IID_PPV_ARGS(&folder));
 
         // Set default folder if found. This only sets the default folder. If
         // Windows has any info about the most recently selected folder, it
@@ -859,7 +908,8 @@ protected:
                 if (wselected)
                 {
                     result = internal::wstr2str(std::wstring(wselected));
-                    CoTaskMemFree(wselected);
+                    dll ole32("ole32.dll");
+                    dll::proc<void WINAPI (LPVOID)>(ole32, "CoTaskMemFree")(wselected);
                 }
             }
         }
