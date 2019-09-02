@@ -383,6 +383,15 @@ protected:
     public:
         new_style_context()
         {
+            // This “hack” seems to be necessary for this code to work on windows XP.
+            // Without it, dialogs do not show and close immediately. GetError()
+            // returns 0 so I don’t know what causes this. I was not able to reproduce
+            // this behavior on Windows 7 and 10 but just in case, let it be here for
+            // those versions too.
+            // This hack is not required if other dialogs are used (they load comdlg32
+            // automatically), only if message boxes are used.
+            static dll comdlg32("comdlg32.dll");
+
             // using approach as shown here:
             // https://stackoverflow.com/a/10444161
             // don't setting flag ACTCTX_FLAG_SET_PROCESS_DEFAULT since it causes crash
@@ -396,22 +405,6 @@ protected:
             };
             UINT cch = GetSystemDirectory(dir, sizeof(dir) / sizeof(*dir));
             dir[cch] = TEXT('\0');
-
-            // this "hack" seems to be necessary for this code to work on windows XP
-            // without it dialogs do not show and close immediately. GetError() returns 0 so
-            // I don't know what causes this. I was not able to reproduce
-            // such behavior on windows 7 and 10 but just in case, let it be here for those versions too
-            // this hack is not required if other dialogs are used (they load this module automatically)
-            // but if only message boxes are used - it is required
-            static bool module_loaded = false;
-            if (!module_loaded)
-            {
-                HMODULE dll_inst = LoadLibrary(TEXT("comdlg32.dll"));
-                if (dll_inst)
-                    FreeLibrary(dll_inst);
-                // need to load it only once
-                module_loaded = true;
-            }
 
             auto hctx = CreateActCtx(&act_ctx);
             if(hctx != INVALID_HANDLE_VALUE)
