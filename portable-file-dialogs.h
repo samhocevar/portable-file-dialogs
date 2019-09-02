@@ -221,7 +221,7 @@ public:
         // - NIIF_NOSOUND   Version 6.0. Do not play the associated sound. Applies only to balloon ToolTips
 
         m_tnd.hIcon = ::LoadIcon(nullptr, IDI_APPLICATION);
-        EnumResourceNames(nullptr, RT_GROUP_ICON, &icon_enum_callback, (LONG_PTR)this);
+        ::EnumResourceNamesW(nullptr, RT_GROUP_ICON, &icon_enum_callback, (LONG_PTR)this);
 
         m_tnd.uTimeout = 5000;
 
@@ -246,14 +246,7 @@ private:
         m_created = false;
     }
 
-    static BOOL CALLBACK icon_enum_callback(
-            _In_opt_ HMODULE,
-#ifdef UNICODE
-            _In_ LPCWSTR, _In_ LPWSTR lpName,
-#else
-            _In_ LPCSTR, _In_ LPSTR lpName,
-#endif // !UNICODE
-            _In_ LONG_PTR lParam)
+    static BOOL CALLBACK icon_enum_callback(HMODULE, LPCWSTR, LPWSTR lpName, LONG_PTR lParam)
     {
         ((WinNotification *)lParam)->m_tnd.hIcon = ::LoadIcon(GetModuleHandle(nullptr), lpName);
         return false;
