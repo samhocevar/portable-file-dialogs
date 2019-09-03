@@ -95,7 +95,7 @@ protected:
         has_matedialog,
         has_qarma,
         has_kdialog,
-        has_ifiledialog,
+        is_vista,
 
         max_flag,
     };
@@ -167,13 +167,15 @@ static inline std::string wstr2str(std::wstring const &str)
 
 static inline bool is_vista()
 {
-    OSVERSIONINFOEXW osvi = { sizeof(osvi), 0, 0, 0, 0, {0}, 0, 0 };
+    OSVERSIONINFOEXW osvi;
+    memset(&osvi, 0, sizeof(osvi));
     DWORDLONG const mask = VerSetConditionMask(
             VerSetConditionMask(
                     VerSetConditionMask(
                             0, VER_MAJORVERSION, VER_GREATER_EQUAL),
                     VER_MINORVERSION, VER_GREATER_EQUAL),
             VER_SERVICEPACKMAJOR, VER_GREATER_EQUAL);
+    osvi.dwOSVersionInfoSize = sizeof(osvi);
     osvi.dwMajorVersion = HIBYTE(_WIN32_WINNT_VISTA);
     osvi.dwMinorVersion = LOBYTE(_WIN32_WINNT_VISTA);
     osvi.wServicePackMajor = 0;
@@ -448,7 +450,7 @@ protected:
         if (!flags(flag::is_scanned))
         {
 #if _WIN32
-            flags(flag::has_ifiledialog) = is_vista();
+            flags(flag::is_vista) = is_vista();
 #elif !__APPLE__
             flags(flag::has_zenity) = check_program("zenity");
             flags(flag::has_matedialog) = check_program("matedialog");
@@ -594,7 +596,7 @@ protected:
 
                 auto status = dll::proc<HRESULT WINAPI (LPVOID, DWORD)>(ole32, "CoInitializeEx")
                                   (nullptr, COINIT_APARTMENTTHREADED);
-                if (flags(flag::has_ifiledialog))
+                if (flags(flag::is_vista))
                 {
                     // On Vista and higher we should be able to use IFileDialog for folder selection
                     IFileDialog *ifd;
@@ -612,7 +614,7 @@ protected:
                 bi.lpfn = &bffcallback;
                 bi.lParam = (LPARAM)this;
 
-                if (is_vista())
+                if (flags(flag::is_vista))
                 {
                     // This hangs on Windows XP, as reported here:
                     // https://github.com/samhocevar/portable-file-dialogs/pull/21
