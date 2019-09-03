@@ -12,14 +12,6 @@
 
 #pragma once
 
-#include <string>
-#include <memory>
-#include <iostream>
-#include <map>
-#include <regex>
-#include <thread>
-#include <chrono>
-
 #if _WIN32
 #ifndef WIN32_LEAN_AND_MEAN
 #   define WIN32_LEAN_AND_MEAN 1
@@ -30,10 +22,22 @@
 #include <shellapi.h>
 #include <future>
 #else
+#ifndef _POSIX_C_SOURCE
+#   define _POSIX_C_SOURCE 2 // for popen()
+#endif
+#include <cstdio>   // for popen()
 #include <cstdlib>  // for std::getenv()
 #include <fcntl.h>  // for fcntl()
 #include <unistd.h> // for read()
 #endif
+
+#include <string>
+#include <memory>
+#include <iostream>
+#include <map>
+#include <regex>
+#include <thread>
+#include <chrono>
 
 namespace pfd
 {
