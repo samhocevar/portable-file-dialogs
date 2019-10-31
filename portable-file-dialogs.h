@@ -539,7 +539,7 @@ protected:
         return "'" + std::regex_replace(str, std::regex("'"), "'\\''") + "'";
     }
 
-    // Check whether a program is present using “which”
+    // Check whether a program is present using “which”.
     bool check_program(std::string const &program)
     {
 #if _WIN32
