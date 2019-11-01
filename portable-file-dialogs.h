@@ -1188,9 +1188,11 @@ public:
                     command += "warning";
                 command += "yesno";
                 if (choice == choice::yes_no_cancel)
-                {
-                    m_mappings[256] = button::no;
                     command += "cancel";
+                if (choice == choice::yes_no || choice == choice::yes_no_cancel)
+                {
+                    m_mappings[0] = button::yes;
+                    m_mappings[256] = button::no;
                 }
             }
 
