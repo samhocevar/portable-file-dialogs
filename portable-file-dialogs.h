@@ -655,11 +655,19 @@ protected:
             ofn.nMaxFile = (DWORD)woutput.size();
             if (!m_wdefault_path.empty())
             {
-                // Initial directory
-                ofn.lpstrInitialDir = m_wdefault_path.c_str();
-                // Initial file selection
-                ofn.lpstrFileTitle = (LPWSTR)m_wdefault_path.data();
-                ofn.nMaxFileTitle = (DWORD)m_wdefault_path.size();
+                // If a directory was provided, use it as the initial directory. If
+                // a valid path was provided, use it as the initial file. Otherwise,
+                // let the Windows API decide.
+                auto path_attr = GetFileAttributesW(m_wdefault_path.c_str());
+                if (path_attr != INVALID_FILE_ATTRIBUTES && (path_attr & FILE_ATTRIBUTE_DIRECTORY))
+                    ofn.lpstrInitialDir = m_wdefault_path.c_str();
+                else if (m_wdefault_path.size() <= woutput.size())
+                    lstrcpyW(ofn.lpstrFile, m_wdefault_path.c_str());
+                else
+                {
+                    ofn.lpstrFileTitle = (LPWSTR)m_wdefault_path.data();
+                    ofn.nMaxFileTitle = (DWORD)m_wdefault_path.size();
+                }
             }
             ofn.lpstrTitle = m_wtitle.c_str();
             ofn.Flags = OFN_NOCHANGEDIR | OFN_EXPLORER;
@@ -674,7 +682,7 @@ protected:
                 // using set context to apply new visual style (required for windows XP)
                 new_style_context ctx;
 
-                dll::proc<BOOL WINAPI (LPOPENFILENAMEW )> get_save_file_name(comdlg32, "GetSaveFileNameW");
+                dll::proc<BOOL WINAPI (LPOPENFILENAMEW)> get_save_file_name(comdlg32, "GetSaveFileNameW");
                 if (get_save_file_name(&ofn) == 0)
                     return "";
                 return internal::wstr2str(woutput.c_str());
@@ -687,7 +695,7 @@ protected:
             // using set context to apply new visual style (required for windows XP)
             new_style_context ctx;
 
-            dll::proc<BOOL WINAPI (LPOPENFILENAMEW )> get_open_file_name(comdlg32, "GetOpenFileNameW");
+            dll::proc<BOOL WINAPI (LPOPENFILENAMEW)> get_open_file_name(comdlg32, "GetOpenFileNameW");
             if (get_open_file_name(&ofn) == 0)
                 return "";
 
@@ -957,7 +965,7 @@ public:
 
         // Release the previous notification icon, if any, and allocate a new
         // one. Note that std::make_shared() does value initialization, so there
-	// is no need to memset the structure.
+        // is no need to memset the structure.
         nid = nullptr;
         nid = std::make_shared<notify_icon_data>();
 
