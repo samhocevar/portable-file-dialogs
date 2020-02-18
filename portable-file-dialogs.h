@@ -21,6 +21,10 @@
 #include <shlobj.h>
 #include <shellapi.h>
 #include <future>
+
+#elif __EMSCRIPTEN__
+#include <emscripten.h>
+
 #else
 #ifndef _POSIX_C_SOURCE
 #   define _POSIX_C_SOURCE 2 // for popen()
@@ -221,6 +225,13 @@ public:
         stop();
         m_future = std::async(fun, &m_exit_code);
         m_running = true;
+    }
+#endif
+
+#if __EMSCRIPTEN__
+    void start(int exit_code)
+    {
+        m_exit_code = exit_code;
     }
 #endif
 
@@ -1089,6 +1100,27 @@ public:
             *exit_code = MessageBoxW(GetForegroundWindow(), wtext.c_str(), wtitle.c_str(), style);
             return "";
         });
+#elif __EMSCRIPTEN__
+        std::string full_message;
+        switch (icon)
+        {
+            case icon::warning: full_message = "⚠️"; break;
+            case icon::error: full_message = "⛔"; break;
+            case icon::question: full_message = "❓"; break;
+            /* case icon::info: */ default: full_message = "ℹ"; break;
+        }
+
+        full_message += ' ' + title + "\n\n" + text;
+
+        // This does not really start an async task; it just passes the
+        // EM_ASM_INT return value to a fake start() function.
+        m_async->start(EM_ASM_INT(
+        {
+            if ($1)
+                return window.confirm(UTF8ToString($0)) ? 0 : -1;
+            alert(UTF8ToString($0));
+            return 0;
+        }, full_message.c_str(), choice == choice::ok_cancel));
 #else
         auto command = desktop_helper();
 
