@@ -20,6 +20,7 @@
 #include <commdlg.h>
 #include <shlobj.h>
 #include <shellapi.h>
+#include <strsafe.h>
 #include <future>
 
 #elif __EMSCRIPTEN__
@@ -1019,9 +1020,8 @@ public:
 
         nid->uTimeout = 5000;
 
-        // FIXME check buffer length
-        lstrcpyW(nid->szInfoTitle, internal::str2wstr(title).c_str());
-        lstrcpyW(nid->szInfo, internal::str2wstr(message).c_str());
+        StringCchCopyW(nid->szInfoTitle, ARRAYSIZE(nid->szInfoTitle), internal::str2wstr(title).c_str());
+        StringCchCopyW(nid->szInfo, ARRAYSIZE(nid->szInfo), internal::str2wstr(message).c_str());
 
         // Display the new icon
         Shell_NotifyIconW(NIM_ADD, nid.get());
