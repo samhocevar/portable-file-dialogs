@@ -674,7 +674,8 @@ protected:
                 if (path_attr != INVALID_FILE_ATTRIBUTES && (path_attr & FILE_ATTRIBUTE_DIRECTORY))
                     ofn.lpstrInitialDir = m_wdefault_path.c_str();
                 else if (m_wdefault_path.size() <= woutput.size())
-                    lstrcpyW(ofn.lpstrFile, m_wdefault_path.c_str());
+                    //second argument is size of buffer, not length of string
+                    StringCchCopyW(ofn.lpstrFile, MAX_PATH*256+1, m_wdefault_path.c_str());
                 else
                 {
                     ofn.lpstrFileTitle = (LPWSTR)m_wdefault_path.data();
