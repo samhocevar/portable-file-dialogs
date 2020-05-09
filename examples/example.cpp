@@ -57,7 +57,7 @@ int main()
     auto f = pfd::open_file("Choose files to read", DEFAULT_PATH,
                             { "Text Files (.txt .text)", "*.txt *.text",
                               "All Files", "*" },
-                            true);
+                            pfd::opt::multiselect);
     std::cout << "Selected files:";
     for (auto const &name : f.result())
         std::cout << " " + name;
