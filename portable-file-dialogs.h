@@ -274,6 +274,7 @@ public:
         WaitForInputIdle(m_pi.hProcess, INFINITE);
 #elif __EMSCRIPTEN__ || __NX__
         // FIXME: do something
+        (void)command;
 #else
         m_stream = popen((command + " 2>/dev/null").c_str(), "r");
         if (!m_stream)
@@ -317,6 +318,7 @@ protected:
         }
 #elif __EMSCRIPTEN__ || __NX__
         // FIXME: do something
+        (void)timeout;
 #else
         char buf[BUFSIZ];
         ssize_t received = read(m_fd, buf, BUFSIZ - 1);
@@ -1364,7 +1366,7 @@ public:
     select_folder(std::string const &title,
                   std::string const &default_path = "",
                   opt options = opt::none)
-      : file_dialog(type::folder, title, default_path, options)
+      : file_dialog(type::folder, title, default_path, {}, options)
     {
     }
 
