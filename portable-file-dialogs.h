@@ -1317,9 +1317,9 @@ public:
 
     // Backwards compatibility
     open_file(std::string const &title,
-              std::string const &default_path = "",
-              std::vector<std::string> filters = { "All Files", "*" },
-              bool allow_multiselect = false)
+              std::string const &default_path,
+              std::vector<std::string> filters,
+              bool allow_multiselect)
        : open_file(title, default_path, filters,
                    (allow_multiselect ? opt::multiselect : opt::none))
     {
@@ -1344,9 +1344,9 @@ public:
 
     // Backwards compatibility
     save_file(std::string const &title,
-              std::string const &default_path = "",
-              std::vector<std::string> filters = { "All Files", "*" },
-              bool confirm_overwrite = true)
+              std::string const &default_path,
+              std::vector<std::string> filters,
+              bool confirm_overwrite)
       : save_file(title, default_path, filters,
                   (confirm_overwrite ? opt::none : opt::force_overwrite))
     {
