@@ -76,6 +76,23 @@ enum class icon
     question,
 };
 
+// Additional option flags for various dialog constructors
+enum class opt : uint8_t
+{
+    none = 0,
+    // For file open, allow multiselect.
+    multiselect     = 0x1,
+    // For file save, force overwrite and disable the confirmation dialog.
+    force_overwrite = 0x2,
+    // For file open or save, force path to be the provided argument instead
+    // of the last opened directory, which is the Microsoft-recommended, user-
+    // friendly behaviour.
+    force_path      = 0x4,
+};
+
+inline opt operator |(opt a, opt b) { return opt(uint8_t(a) | uint8_t(b)); }
+inline bool operator &(opt a, opt b) { return bool(uint8_t(a) & uint8_t(b)); }
+
 // Process wait timeout, in milliseconds
 static int const default_wait_timeout = 20;
 
@@ -586,8 +603,7 @@ protected:
                 std::string const &title,
                 std::string const &default_path = "",
                 std::vector<std::string> filters = {},
-                bool allow_multiselect = false,
-                bool confirm_overwrite = true)
+                opt options = opt::none)
     {
 #if _WIN32
         std::string filter_list;
@@ -600,7 +616,7 @@ protected:
         filter_list += '\0';
 
         m_async->start([this, in_type, title, default_path, filter_list,
-                        allow_multiselect, confirm_overwrite](int *exit_code) -> std::string
+                        options](int *exit_code) -> std::string
         {
             (void)exit_code;
             m_wtitle = internal::str2wstr(title);
@@ -623,7 +639,7 @@ protected:
 
                     // In case CoCreateInstance fails (which it should not), try legacy approach
                     if (SUCCEEDED(hr))
-                        return select_folder_vista(ifd);
+                        return select_folder_vista(ifd, options & opt::force_path);
                 }
 
                 BROWSEINFOW bi;
@@ -691,7 +707,7 @@ protected:
 
             if (in_type == type::save)
             {
-                if (confirm_overwrite)
+                if (!(options & opt::force_overwrite))
                     ofn.Flags |= OFN_OVERWRITEPROMPT;
 
                 // using set context to apply new visual style (required for windows XP)
@@ -703,7 +719,7 @@ protected:
                 return internal::wstr2str(woutput.c_str());
             }
 
-            if (allow_multiselect)
+            if (options & opt::multiselect)
                 ofn.Flags |= OFN_ALLOWMULTISELECT;
             ofn.Flags |= OFN_PATHMUSTEXIST;
 
@@ -722,7 +738,7 @@ protected:
                 // In multiselect mode, we advance p one step more and
                 // check for another filename. If there is one and the
                 // prefix is empty, it means we just read the prefix.
-                if (allow_multiselect && *++p && prefix.empty())
+                if ((options & opt::multiselect) && *++p && prefix.empty())
                 {
                     prefix = filename + "/";
                     continue;
@@ -746,7 +762,7 @@ protected:
                     break;
                 case type::open: default:
                     command += " file";
-                    if (allow_multiselect)
+                    if (options & opt::multiselect)
                         command += " with multiple selections allowed";
                     break;
                 case type::folder:
@@ -786,7 +802,7 @@ protected:
                     command += " of type {" + filter_list + "}";
             }
 
-            if (in_type == type::open && allow_multiselect)
+            if (in_type == type::open && (options & opt::multiselect))
             {
                 command += "\nset s to \"\"";
                 command += "\nrepeat with i in ret";
@@ -812,9 +828,9 @@ protected:
                 command += " --save";
             if (in_type == type::folder)
                 command += " --directory";
-            if (confirm_overwrite)
+            if (!(options & opt::force_overwrite))
                 command += " --confirm-overwrite";
-            if (allow_multiselect)
+            if (options & opt::multiselect)
                 command += " --multiple";
         }
         else if (is_kdialog())
@@ -889,7 +905,7 @@ protected:
         return 0;
     }
 
-    std::string select_folder_vista(IFileDialog *ifd)
+    std::string select_folder_vista(IFileDialog *ifd, bool force_path)
     {
         std::string result;
 
@@ -915,7 +931,10 @@ protected:
         // https://docs.microsoft.com/windows/win32/api/shobjidl_core/nf-shobjidl_core-ifiledialog-setfolder
         if (SUCCEEDED(hr))
         {
-            ifd->SetDefaultFolder(folder);
+            if (force_path)
+                ifd->SetFolder(folder);
+            else
+                ifd->SetDefaultFolder(folder);
             folder->Release();
         }
 
@@ -1291,9 +1310,18 @@ public:
     open_file(std::string const &title,
               std::string const &default_path = "",
               std::vector<std::string> filters = { "All Files", "*" },
+              opt options = opt::none)
+      : file_dialog(type::open, title, default_path, filters, options)
+    {
+    }
+
+    // Backwards compatibility
+    open_file(std::string const &title,
+              std::string const &default_path = "",
+              std::vector<std::string> filters = { "All Files", "*" },
               bool allow_multiselect = false)
-      : file_dialog(type::open, title, default_path,
-                    filters, allow_multiselect, false)
+       : open_file(title, default_path, filters,
+                   (allow_multiselect ? opt::multiselect : opt::none))
     {
     }
 
@@ -1309,9 +1337,18 @@ public:
     save_file(std::string const &title,
               std::string const &default_path = "",
               std::vector<std::string> filters = { "All Files", "*" },
+              opt options = opt::none)
+      : file_dialog(type::save, title, default_path, filters, options)
+    {
+    }
+
+    // Backwards compatibility
+    save_file(std::string const &title,
+              std::string const &default_path = "",
+              std::vector<std::string> filters = { "All Files", "*" },
               bool confirm_overwrite = true)
-      : file_dialog(type::save, title, default_path,
-                    filters, false, confirm_overwrite)
+      : save_file(title, default_path, filters,
+                  (confirm_overwrite ? opt::none : opt::force_overwrite))
     {
     }
 
@@ -1325,8 +1362,9 @@ class select_folder : public internal::file_dialog
 {
 public:
     select_folder(std::string const &title,
-                  std::string const &default_path = "")
-      : file_dialog(type::folder, title, default_path)
+                  std::string const &default_path = "",
+                  opt options = opt::none)
+      : file_dialog(type::folder, title, default_path, options)
     {
     }
 
