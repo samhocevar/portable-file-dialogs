@@ -347,6 +347,8 @@ private:
 #if _WIN32
     std::future<std::string> m_future;
     PROCESS_INFORMATION m_pi;
+#elif __EMSCRIPTEN__ || __NX__
+    // FIXME: do something
 #else
     FILE *m_stream = nullptr;
     int m_fd = -1;
