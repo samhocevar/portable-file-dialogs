@@ -93,9 +93,6 @@ enum class opt : uint8_t
 inline opt operator |(opt a, opt b) { return opt(uint8_t(a) | uint8_t(b)); }
 inline bool operator &(opt a, opt b) { return bool(uint8_t(a) & uint8_t(b)); }
 
-// Process wait timeout, in milliseconds
-static int const default_wait_timeout = 20;
-
 // The settings class, only exposing to the user a way to set verbose mode
 // and to force a rescan of installed desktop helpers (zenity, kdialog…).
 class settings
@@ -136,15 +133,8 @@ protected:
 namespace internal
 {
 
-#if _WIN32
-static inline std::wstring str2wstr(std::string const &str);
-static inline std::string wstr2str(std::wstring const &str);
-static inline bool is_vista();
-#endif
-
-// This is necessary until C++20 which will have std::string::ends_with() etc.
-static inline bool ends_with(std::string const &str, std::string const &suffix);
-static inline bool starts_with(std::string const &str, std::string const &prefix);
+// Process wait timeout, in milliseconds
+static int const default_wait_timeout = 20;
 
 class executor
 {
@@ -281,6 +271,10 @@ protected:
 
 } // namespace internal
 
+//
+// The notify widget
+//
+
 class notify : public internal::dialog
 {
 public:
@@ -288,6 +282,10 @@ public:
            std::string const &message,
            icon _icon = icon::info);
 };
+
+//
+// The message widget
+//
 
 class message : public internal::dialog
 {
@@ -303,6 +301,10 @@ private:
     // Some extra logic to map the exit code to button number
     std::map<int, button> m_mappings;
 };
+
+//
+// The open_file, save_file, and open_folder widgets
+//
 
 class open_file : public internal::file_dialog
 {
@@ -358,6 +360,14 @@ public:
     std::string result();
 };
 
+//
+// Below this are all the method implementations. You may choose to define the
+// macro PFD_SKIP_IMPLEMENTATION everywhere before including this header except
+// in one place. This may reduce compilation times.
+//
+
+#if !defined PFD_SKIP_IMPLEMENTATION
+
 // settings implementation
 
 inline settings::settings(bool resync)
@@ -409,8 +419,11 @@ inline bool &settings::flags(flag in_flag)
 
 // internal free functions implementations
 
+namespace internal
+{
+
 #if _WIN32
-static inline std::wstring internal::str2wstr(std::string const &str)
+static inline std::wstring str2wstr(std::string const &str)
 {
     int len = MultiByteToWideChar(CP_UTF8, 0, str.c_str(), (int)str.size(), nullptr, 0);
     std::wstring ret(len, '\0');
@@ -418,7 +431,7 @@ static inline std::wstring internal::str2wstr(std::string const &str)
     return ret;
 }
 
-static inline std::string internal::wstr2str(std::wstring const &str)
+static inline std::string wstr2str(std::wstring const &str)
 {
     int len = WideCharToMultiByte(CP_UTF8, 0, str.c_str(), (int)str.size(), nullptr, 0, nullptr, nullptr);
     std::string ret(len, '\0');
@@ -426,7 +439,7 @@ static inline std::string internal::wstr2str(std::wstring const &str)
     return ret;
 }
 
-static inline bool internal::is_vista()
+static inline bool is_vista()
 {
     OSVERSIONINFOEXW osvi;
     memset(&osvi, 0, sizeof(osvi));
@@ -445,19 +458,21 @@ static inline bool internal::is_vista()
 }
 #endif
 
-static inline bool internal::ends_with(std::string const &str,
-                                       std::string const &suffix)
+// This is necessary until C++20 which will have std::string::ends_with() etc.
+
+static inline bool ends_with(std::string const &str, std::string const &suffix)
 {
     return suffix.size() <= str.size() &&
         str.compare(str.size() - suffix.size(), suffix.size(), suffix) == 0;
 }
 
-static inline bool internal::starts_with(std::string const &str,
-                                         std::string const &prefix)
+static inline bool starts_with(std::string const &str, std::string const &prefix)
 {
     return prefix.size() <= str.size() &&
         str.compare(0, prefix.size(), prefix) == 0;
 }
+
+} // namespace internal
 
 // executor implementation
 
@@ -1514,6 +1529,8 @@ inline std::string select_folder::result()
 {
     return string_result();
 }
+
+#endif // PFD_SKIP_IMPLEMENTATION
 
 } // namespace pfd
 
