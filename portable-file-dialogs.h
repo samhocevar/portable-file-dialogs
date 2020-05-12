@@ -206,7 +206,7 @@ protected:
     class new_style_context
     {
     public:
-        new_style_context()
+        new_style_context();
         ~new_style_context();
 
     private:
