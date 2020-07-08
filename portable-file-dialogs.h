@@ -1,7 +1,7 @@
 //
 //  Portable File Dialogs
 //
-//  Copyright © 2018—2019 Sam Hocevar <sam@hocevar.net>
+//  Copyright © 2018—2020 Sam Hocevar <sam@hocevar.net>
 //
 //  This library is free software. It comes without any warranty, to
 //  the extent permitted by applicable law. You can redistribute it
@@ -30,10 +30,12 @@
 #ifndef _POSIX_C_SOURCE
 #   define _POSIX_C_SOURCE 2 // for popen()
 #endif
-#include <cstdio>   // for popen()
-#include <cstdlib>  // for std::getenv()
-#include <fcntl.h>  // for fcntl()
-#include <unistd.h> // for read()
+#include <cstdio>     // popen()
+#include <cstdlib>    // std::getenv()
+#include <fcntl.h>    // fcntl()
+#include <unistd.h>   // read()
+#include <signal.h>   // kill(), SIGKILL
+#include <sys/wait.h> // waitpid()
 #endif
 
 #include <string>
@@ -144,6 +146,9 @@ public:
     // High level function to get the result of a command
     std::string result(int *exit_code = nullptr);
 
+    // High level function to abort
+    void abort();
+
 #if _WIN32
     void start(std::function<std::string(int *)> const &fun);
 #endif
@@ -168,7 +173,7 @@ private:
 #elif __EMSCRIPTEN__ || __NX__
     // FIXME: do something
 #else
-    FILE *m_stream = nullptr;
+    pid_t m_pid = 0;
     int m_fd = -1;
 #endif
 };
@@ -484,6 +489,26 @@ inline std::string internal::executor::result(int *exit_code /* = nullptr */)
     return m_stdout;
 }
 
+inline void internal::executor::abort()
+{
+#if _WIN32
+    if (m_future.valid())
+    {
+        // TODO
+    }
+    else
+    {
+        TerminateProcess(m_pi.hProcess, 0);
+    }
+#elif __EMSCRIPTEN__ || __NX__
+    // FIXME: do something
+    (void)timeout;
+#else
+    kill(m_pid, SIGKILL);
+#endif
+    stop();
+}
+
 #if _WIN32
 inline void internal::executor::start(std::function<std::string(int *)> const &fun)
 {
@@ -523,12 +548,29 @@ inline void internal::executor::start(std::string const &command)
     // FIXME: do something
     (void)command;
 #else
-    m_stream = popen((command + " 2>/dev/null").c_str(), "r");
-    if (!m_stream)
+    int in[2], out[2];
+    if (pipe(in) != 0 || pipe(out) != 0)
         return;
-    m_fd = fileno(m_stream);
+
+    m_pid = fork();
+    if (m_pid < 0)
+        return;
+
+    if (m_pid == 0)
+    {
+        close(in[1]);
+        dup2(in[0], 0);
+        close(out[0]);
+        dup2(out[1], 1);
+        execl("/bin/sh", "-c", (command + " 2>/dev/null").c_str());
+        exit(1);
+    }
+
+    close(in[1]);
+    m_fd = out[0];
     fcntl(m_fd, F_SETFL, O_NONBLOCK);
 #endif
+
     m_running = true;
 }
 
@@ -579,7 +621,9 @@ inline bool internal::executor::ready(int timeout /* = default_wait_timeout */)
         m_stdout += std::string(buf, received);
         return false;
     }
-    m_exit_code = pclose(m_stream);
+    int status;
+    waitpid(m_pid, &status, 0);
+    m_exit_code = WEXITSTATUS(status);
 #endif
 
     m_running = false;
