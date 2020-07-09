@@ -547,7 +547,18 @@ inline bool internal::executor::ready(int timeout /* = default_wait_timeout */)
     {
         auto status = m_future.wait_for(std::chrono::milliseconds(timeout));
         if (status != std::future_status::ready)
+        {
+            // On Windows, we need to run the message pump. If the async
+            // thread uses a Windows API dialog, it may be attached to the
+            // main thread and waiting for messages that only we can dispatch.
+            MSG msg;
+            while (PeekMessage(&msg, nullptr, 0, 0, PM_REMOVE))
+            {
+                TranslateMessage(&msg);
+                DispatchMessage(&msg);
+            }
             return false;
+        }
 
         m_stdout = m_future.get();
     }
@@ -590,19 +601,7 @@ inline void internal::executor::stop()
 {
     // Loop until the user closes the dialog
     while (!ready())
-    {
-#if _WIN32
-        // On Windows, we need to run the message pump. If the async
-        // thread uses a Windows API dialog, it may be attached to the
-        // main thread and waiting for messages that only we can dispatch.
-        MSG msg;
-        while (PeekMessage(&msg, nullptr, 0, 0, PM_REMOVE))
-        {
-            TranslateMessage(&msg);
-            DispatchMessage(&msg);
-        }
-#endif
-    }
+        ;
 }
 
 // dll implementation
