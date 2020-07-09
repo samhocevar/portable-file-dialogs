@@ -828,14 +828,16 @@ inline std::string internal::dialog::powershell_quote(std::string const &str) co
     return "'" + std::regex_replace(str, std::regex("['\"]"), "$&$&") + "'";
 }
 
-// Properly quote a string for osascript: replace ' with '\'' and \ or " with \\ or \"
+// Properly quote a string for osascript: replace \ or " with \\ or \"
+// XXX: this also used to replace ' with \' when popen was used, but it would be
+// smarter to do shell_quote(osascript_quote(...)) if this is needed again.
 inline std::string internal::dialog::osascript_quote(std::string const &str) const
 {
-    return "\"" + std::regex_replace(std::regex_replace(str,
-                      std::regex("[\\\\\"]"), "\\$&"), std::regex("'"), "'\\''") + "\"";
+    return "\"" + std::regex_replace(str, std::regex("[\\\\\"]"), "\\$&") + "\"";
 }
 
 // Properly quote a string for the shell: just replace ' with '\''
+// XXX: this is no longer used but I would like to keep it somewhere
 inline std::string internal::dialog::shell_quote(std::string const &str) const
 {
     return "'" + std::regex_replace(str, std::regex("'"), "'\\''") + "'";
@@ -1012,7 +1014,7 @@ inline internal::file_dialog::file_dialog(type in_type,
 
     if (is_osascript())
     {
-        std::string script = "'set ret to choose";
+        std::string script = "set ret to choose";
         switch (in_type)
         {
             case type::save:
@@ -1066,11 +1068,11 @@ inline internal::file_dialog::file_dialog(type in_type,
             script += "\nrepeat with i in ret";
             script += "\n  set s to s & (POSIX path of i) & \"\\n\"";
             script += "\nend repeat";
-            script += "\ncopy s to stdout'";
+            script += "\ncopy s to stdout";
         }
         else
         {
-            script += "\nPOSIX path of ret'";
+            script += "\nPOSIX path of ret";
         }
 
         command.push_back("-e");
@@ -1311,8 +1313,8 @@ inline notify::notify(std::string const &title,
     if (is_osascript())
     {
         command.push_back("-e");
-        command.push_back("'display notification " + osascript_quote(message) +
-                          " with title " + osascript_quote(title) + "'");
+        command.push_back("display notification " + osascript_quote(message) +
+                          " with title " + osascript_quote(title));
     }
     else if (is_zenity())
     {
@@ -1410,44 +1412,44 @@ inline message::message(std::string const &title,
 
     if (is_osascript())
     {
-        std::string script = "'display dialog " + osascript_quote(text) +
+        std::string script = "display dialog " + osascript_quote(text) +
                              " with title " + osascript_quote(title);
         switch (_choice)
         {
             case choice::ok_cancel:
-                script += "buttons {\"OK\", \"Cancel\"} "
-                          "default button \"OK\" "
-                          "cancel button \"Cancel\"";
+                script += "buttons {\"OK\", \"Cancel\"}"
+                          " default button \"OK\""
+                          " cancel button \"Cancel\"";
                 m_mappings[256] = button::cancel;
                 break;
             case choice::yes_no:
-                script += "buttons {\"Yes\", \"No\"} "
-                          "default button \"Yes\" "
-                          "cancel button \"No\"";
+                script += "buttons {\"Yes\", \"No\"}"
+                          " default button \"Yes\""
+                          " cancel button \"No\"";
                 m_mappings[256] = button::no;
                 break;
             case choice::yes_no_cancel:
-                script += "buttons {\"Yes\", \"No\", \"Cancel\"} "
-                          "default button \"Yes\" "
-                          "cancel button \"Cancel\"";
+                script += "buttons {\"Yes\", \"No\", \"Cancel\"}"
+                          " default button \"Yes\""
+                          " cancel button \"Cancel\"";
                 m_mappings[256] = button::cancel;
                 break;
             case choice::retry_cancel:
-                script += "buttons {\"Retry\", \"Cancel\"} "
-                          "default button \"Retry\" "
-                          "cancel button \"Cancel\"";
+                script += "buttons {\"Retry\", \"Cancel\"}"
+                          " default button \"Retry\""
+                          " cancel button \"Cancel\"";
                 m_mappings[256] = button::cancel;
                 break;
             case choice::abort_retry_ignore:
-                script += "buttons {\"Abort\", \"Retry\", \"Ignore\"} "
-                          "default button \"Retry\" "
-                          "cancel button \"Retry\"";
+                script += "buttons {\"Abort\", \"Retry\", \"Ignore\"}"
+                          " default button \"Retry\""
+                          " cancel button \"Retry\"";
                 m_mappings[256] = button::cancel;
                 break;
             case choice::ok: default:
-                script += "buttons {\"OK\"} "
-                          "default button \"OK\" "
-                          "cancel button \"OK\"";
+                script += "buttons {\"OK\"}"
+                          " default button \"OK\""
+                          " cancel button \"OK\"";
                 m_mappings[256] = button::ok;
                 break;
         }
@@ -1462,7 +1464,6 @@ inline message::message(std::string const &title,
             case icon::question: script += PFD_OSX_ICON("GenericQuestionMarkIcon"); break;
             #undef PFD_OSX_ICON
         }
-        script += "'";
 
         command.push_back("-e");
         command.push_back(script);
