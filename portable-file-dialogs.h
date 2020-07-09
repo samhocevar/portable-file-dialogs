@@ -155,7 +155,7 @@ public:
 #if __EMSCRIPTEN__
     void start(int exit_code);
 #endif
-    void start(std::string const &command);
+    void start(std::vector<std::string> const &command);
 
     ~executor();
 
@@ -230,7 +230,7 @@ public:
 protected:
     explicit dialog();
 
-    std::string desktop_helper() const;
+    std::vector<std::string> desktop_helper() const;
     std::string buttons_to_name(choice _choice) const;
     std::string get_icon_name(icon _icon) const;
 
@@ -526,7 +526,7 @@ inline void internal::executor::start(int exit_code)
 }
 #endif
 
-inline void internal::executor::start(std::string const &command)
+inline void internal::executor::start(std::vector<std::string> const &command)
 {
     stop();
     m_stdout.clear();
@@ -557,13 +557,25 @@ inline void internal::executor::start(std::string const &command)
     if (m_pid < 0)
         return;
 
+    close(in[m_pid ? 0 : 1]);
+    close(out[m_pid ? 1 : 0]);
+
     if (m_pid == 0)
     {
-        close(in[1]);
-        close(out[0]);
         dup2(in[0], STDIN_FILENO);
         dup2(out[1], STDOUT_FILENO);
-        execl("/bin/sh", "/bin/sh", "-c", (command + " 2>/dev/null").c_str(), NULL);
+
+        // Ignore stderr so that it doesn’t pollute the console (e.g. GTK+ errors from zenity)
+        int fd = open("/dev/null", O_WRONLY);
+        dup2(fd, STDERR_FILENO);
+        close(fd);
+
+        std::vector<char *> args;
+        std::transform(command.cbegin(), command.cend(), std::back_inserter(args),
+                       [](std::string const &s) { return const_cast<char *>(s.c_str()); });
+        args.push_back(nullptr); // null-terminate argv[]
+
+        execvp(args[0], args.data());
         exit(1);
     }
 
@@ -631,6 +643,7 @@ inline bool internal::executor::ready(int timeout /* = default_wait_timeout */)
         return false;
     }
 
+    close(m_fd);
     m_exit_code = WEXITSTATUS(status);
 #endif
 
@@ -756,16 +769,16 @@ inline internal::dialog::dialog()
     }
 }
 
-inline std::string internal::dialog::desktop_helper() const
+inline std::vector<std::string> internal::dialog::desktop_helper() const
 {
 #if __APPLE__
-    return "osascript";
+    return { "osascript" };
 #else
-    return flags(flag::has_zenity) ? "zenity"
-         : flags(flag::has_matedialog) ? "matedialog"
-         : flags(flag::has_qarma) ? "qarma"
-         : flags(flag::has_kdialog) ? "kdialog"
-         : "echo";
+    return { flags(flag::has_zenity) ? "zenity"
+           : flags(flag::has_matedialog) ? "matedialog"
+           : flags(flag::has_qarma) ? "qarma"
+           : flags(flag::has_kdialog) ? "kdialog"
+           : "echo" };
 #endif
 }
 
@@ -799,6 +812,14 @@ inline std::string internal::dialog::get_icon_name(icon _icon) const
     }
 }
 
+std::ostream& operator <<(std::ostream &s, std::vector<std::string> const &v)
+{
+    int not_first = 0;
+    for (auto &e : v)
+        s << (not_first++ ? " " : "") << e;
+    return s;
+}
+
 // Properly quote a string for Powershell: replace ' or " with '' or ""
 // FIXME: we should probably get rid of newlines!
 // FIXME: the \" sequence seems unsafe, too!
@@ -828,7 +849,7 @@ inline bool internal::dialog::check_program(std::string const &program)
     return false;
 #else
     int exit_code = -1;
-    m_async->start("which " + program + " 2>/dev/null");
+    m_async->start({"/bin/sh", "-c", "which " + program + " 2>/dev/null"});
     m_async->result(&exit_code);
     return exit_code == 0;
 #endif
@@ -991,25 +1012,25 @@ inline internal::file_dialog::file_dialog(type in_type,
 
     if (is_osascript())
     {
-        command += " -e 'set ret to choose";
+        std::string script = "'set ret to choose";
         switch (in_type)
         {
             case type::save:
-                command += " file name";
+                script += " file name";
                 break;
             case type::open: default:
-                command += " file";
+                script += " file";
                 if (options & opt::multiselect)
-                    command += " with multiple selections allowed";
+                    script += " with multiple selections allowed";
                 break;
             case type::folder:
-                command += " folder";
+                script += " folder";
                 break;
         }
 
         if (default_path.size())
-            command += " default location " + osascript_quote(default_path);
-        command += " with prompt " + osascript_quote(title);
+            script += " default location " + osascript_quote(default_path);
+        script += " with prompt " + osascript_quote(title);
 
         if (in_type == type::open)
         {
@@ -1036,56 +1057,65 @@ inline internal::file_dialog::file_dialog(type in_type,
                                    osascript_quote(pat.substr(2, pat.size() - 2));
             }
             if (has_filter && filter_list.size() > 0)
-                command += " of type {" + filter_list + "}";
+                script += " of type {" + filter_list + "}";
         }
 
         if (in_type == type::open && (options & opt::multiselect))
         {
-            command += "\nset s to \"\"";
-            command += "\nrepeat with i in ret";
-            command += "\n  set s to s & (POSIX path of i) & \"\\n\"";
-            command += "\nend repeat";
-            command += "\ncopy s to stdout'";
+            script += "\nset s to \"\"";
+            script += "\nrepeat with i in ret";
+            script += "\n  set s to s & (POSIX path of i) & \"\\n\"";
+            script += "\nend repeat";
+            script += "\ncopy s to stdout'";
         }
         else
         {
-            command += "\nPOSIX path of ret'";
+            script += "\nPOSIX path of ret'";
         }
+
+        command.push_back("-e");
+        command.push_back(script);
     }
     else if (is_zenity())
     {
-        command += " --file-selection --filename=" + shell_quote(default_path)
-                 + " --title " + shell_quote(title)
-                 + " --separator='\n'";
+        command.push_back("--file-selection");
+        command.push_back("--filename=" + default_path);
+        command.push_back("--title");
+        command.push_back(title);
+        command.push_back("--separator='\n'");
 
         for (size_t i = 0; i < filters.size() / 2; ++i)
-            command += " --file-filter " + shell_quote(filters[2 * i] + "|" + filters[2 * i + 1]);
+        {
+            command.push_back("--file-filter");
+            command.push_back(filters[2 * i] + "|" + filters[2 * i + 1]);
+        }
 
         if (in_type == type::save)
-            command += " --save";
+            command.push_back("--save");
         if (in_type == type::folder)
-            command += " --directory";
+            command.push_back("--directory");
         if (!(options & opt::force_overwrite))
-            command += " --confirm-overwrite";
+            command.push_back("--confirm-overwrite");
         if (options & opt::multiselect)
-            command += " --multiple";
+            command.push_back("--multiple");
     }
     else if (is_kdialog())
     {
         switch (in_type)
         {
-            case type::save: command += " --getsavefilename"; break;
-            case type::open: command += " --getopenfilename"; break;
-            case type::folder: command += " --getexistingdirectory"; break;
+            case type::save: command.push_back("--getsavefilename"); break;
+            case type::open: command.push_back("--getopenfilename"); break;
+            case type::folder: command.push_back("--getexistingdirectory"); break;
         }
-        command += " " + shell_quote(default_path);
+        command.push_back(default_path);
 
         std::string filter;
         for (size_t i = 0; i < filters.size() / 2; ++i)
             filter += (i == 0 ? "" : " | ") + filters[2 * i] + "(" + filters[2 * i + 1] + ")";
-        command += " " + shell_quote(filter);
+        command.push_back(filter);
 
-        command += " --title " + shell_quote(title);
+        command.push_back("--title");
+        command.push_back(title);
     }
 
     if (flags(flag::is_verbose))
@@ -1280,21 +1310,27 @@ inline notify::notify(std::string const &title,
 
     if (is_osascript())
     {
-        command += " -e 'display notification " + osascript_quote(message) +
-                   "     with title " + osascript_quote(title) + "'";
+        command.push_back("-e");
+        command.push_back("'display notification " + osascript_quote(message) +
+                          " with title " + osascript_quote(title) + "'");
     }
     else if (is_zenity())
     {
-        command += " --notification"
-                   " --window-icon " + get_icon_name(_icon) +
-                   " --text " + shell_quote(title + "\n" + message);
+        command.push_back("--notification");
+        command.push_back("--window-icon");
+        command.push_back(get_icon_name(_icon));
+        command.push_back("--text");
+        command.push_back(title + "\n" + message);
     }
     else if (is_kdialog())
     {
-        command += " --icon " + get_icon_name(_icon) +
-                   " --title " + shell_quote(title) +
-                   " --passivepopup " + shell_quote(message) +
-                   " 5";
+        command.push_back("--icon");
+        command.push_back(get_icon_name(_icon));
+        command.push_back("--title");
+        command.push_back(title);
+        command.push_back("--passivepopup");
+        command.push_back(message);
+        command.push_back("5");
     }
 
     if (flags(flag::is_verbose))
@@ -1374,89 +1410,92 @@ inline message::message(std::string const &title,
 
     if (is_osascript())
     {
-        command += " -e 'display dialog " + osascript_quote(text) +
-                   "     with title " + osascript_quote(title);
+        std::string script = "'display dialog " + osascript_quote(text) +
+                             " with title " + osascript_quote(title);
         switch (_choice)
         {
             case choice::ok_cancel:
-                command += "buttons {\"OK\", \"Cancel\"} "
-                           "default button \"OK\" "
-                           "cancel button \"Cancel\"";
+                script += "buttons {\"OK\", \"Cancel\"} "
+                          "default button \"OK\" "
+                          "cancel button \"Cancel\"";
                 m_mappings[256] = button::cancel;
                 break;
             case choice::yes_no:
-                command += "buttons {\"Yes\", \"No\"} "
-                           "default button \"Yes\" "
-                           "cancel button \"No\"";
+                script += "buttons {\"Yes\", \"No\"} "
+                          "default button \"Yes\" "
+                          "cancel button \"No\"";
                 m_mappings[256] = button::no;
                 break;
             case choice::yes_no_cancel:
-                command += "buttons {\"Yes\", \"No\", \"Cancel\"} "
-                           "default button \"Yes\" "
-                           "cancel button \"Cancel\"";
+                script += "buttons {\"Yes\", \"No\", \"Cancel\"} "
+                          "default button \"Yes\" "
+                          "cancel button \"Cancel\"";
                 m_mappings[256] = button::cancel;
                 break;
             case choice::retry_cancel:
-                command += "buttons {\"Retry\", \"Cancel\"} "
-                    "default button \"Retry\" "
-                    "cancel button \"Cancel\"";
+                script += "buttons {\"Retry\", \"Cancel\"} "
+                          "default button \"Retry\" "
+                          "cancel button \"Cancel\"";
                 m_mappings[256] = button::cancel;
                 break;
             case choice::abort_retry_ignore:
-                command += "buttons {\"Abort\", \"Retry\", \"Ignore\"} "
-                    "default button \"Retry\" "
-                    "cancel button \"Retry\"";
+                script += "buttons {\"Abort\", \"Retry\", \"Ignore\"} "
+                          "default button \"Retry\" "
+                          "cancel button \"Retry\"";
                 m_mappings[256] = button::cancel;
                 break;
             case choice::ok: default:
-                command += "buttons {\"OK\"} "
-                           "default button \"OK\" "
-                           "cancel button \"OK\"";
+                script += "buttons {\"OK\"} "
+                          "default button \"OK\" "
+                          "cancel button \"OK\"";
                 m_mappings[256] = button::ok;
                 break;
         }
-        command += " with icon ";
+        script += " with icon ";
         switch (_icon)
         {
             #define PFD_OSX_ICON(n) "alias ((path to library folder from system domain) as text " \
                 "& \"CoreServices:CoreTypes.bundle:Contents:Resources:" n ".icns\")"
-            case icon::info: default: command += PFD_OSX_ICON("ToolBarInfo"); break;
-            case icon::warning: command += "caution"; break;
-            case icon::error: command += "stop"; break;
-            case icon::question: command += PFD_OSX_ICON("GenericQuestionMarkIcon"); break;
+            case icon::info: default: script += PFD_OSX_ICON("ToolBarInfo"); break;
+            case icon::warning: script += "caution"; break;
+            case icon::error: script += "stop"; break;
+            case icon::question: script += PFD_OSX_ICON("GenericQuestionMarkIcon"); break;
             #undef PFD_OSX_ICON
         }
-        command += "'";
+        script += "'";
+
+        command.push_back("-e");
+        command.push_back(script);
     }
     else if (is_zenity())
     {
         switch (_choice)
         {
             case choice::ok_cancel:
-                command += " --question --ok-label=OK --cancel-label=Cancel"; break;
+                command.insert(command.end(), { "--question", "--ok-label=OK", "--cancel-label=Cancel" }); break;
             case choice::yes_no:
                 // Do not use standard --question because it causes “No” to return -1,
                 // which is inconsistent with the “Yes/No/Cancel” mode below.
-                command += " --question --switch --extra-button No --extra-button Yes"; break;
+                command.insert(command.end(), { "--question", "--switch", "--extra-button", "No", "--extra-button", "Yes" }); break;
             case choice::yes_no_cancel:
-                command += " --question --switch --extra-button No --extra-button Yes --extra-button Cancel"; break;
+                command.insert(command.end(), { "--question", "--switch", "--extra-button", "No", "--extra-button", "Yes", "--extra-button", "Cancel" }); break;
             case choice::retry_cancel:
-                command += " --question --switch --extra-button Retry --extra-button Cancel"; break;
+                command.insert(command.end(), { "--question", "--switch", "--extra-button", "Retry", "--extra-button", "Cancel" }); break;
             case choice::abort_retry_ignore:
-                command += " --question --switch --extra-button Abort --extra-button Retry --extra-button Ignore"; break;
+                command.insert(command.end(), { "--question", "--switch", "--extra-button", "Abort", "--extra-button", "Retry", "--extra-button", "Ignore" }); break;
             default:
                 switch (_icon)
                 {
-                    case icon::error: command += " --error"; break;
-                    case icon::warning: command += " --warning"; break;
-                    default: command += " --info"; break;
+                    case icon::error: command.push_back("--error"); break;
+                    case icon::warning: command.push_back("--warning"); break;
+                    default: command.push_back("--info"); break;
                 }
         }
 
-        command += " --title " + shell_quote(title)
-                 + " --width 300 --height 0" // sensible defaults
-                 + " --text " + shell_quote(text)
-                 + " --icon-name=dialog-" + get_icon_name(_icon);
+        command.insert(command.end(), { "--title", title,
+                                        "--width", "300", "--height", "0", // sensible defaults
+                                        "--text", text,
+                                        "--icon-name=dialog-" + get_icon_name(_icon) });
     }
     else if (is_kdialog())
     {
@@ -1464,19 +1503,19 @@ inline message::message(std::string const &title,
         {
             switch (_icon)
             {
-                case icon::error: command += " --error"; break;
-                case icon::warning: command += " --sorry"; break;
-                default: command += " --msgbox"; break;
+                case icon::error: command.push_back("--error"); break;
+                case icon::warning: command.push_back("--sorry"); break;
+                default: command.push_back("--msgbox"); break;
             }
         }
         else
         {
-            command += " --";
+            command.push_back("--");
             if (_icon == icon::warning || _icon == icon::error)
-                command += "warning";
-            command += "yesno";
+                command.push_back("warning");
+            command.push_back("yesno");
             if (_choice == choice::yes_no_cancel)
-                command += "cancel";
+                command.push_back("cancel");
             if (_choice == choice::yes_no || _choice == choice::yes_no_cancel)
             {
                 m_mappings[0] = button::yes;
@@ -1484,12 +1523,13 @@ inline message::message(std::string const &title,
             }
         }
 
-        command += " " + shell_quote(text)
-                 + " --title " + shell_quote(title);
+        command.push_back(text);
+        command.push_back("--title");
+        command.push_back(title);
 
         // Must be after the above part
         if (_choice == choice::ok_cancel)
-            command += " --yes-label OK --no-label Cancel";
+            command.insert(command.end(), { "--yes-label", "OK", "--no-label", "Cancel" });
     }
 
     if (flags(flag::is_verbose))
