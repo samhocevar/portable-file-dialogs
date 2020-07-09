@@ -151,11 +151,11 @@ public:
 
 #if _WIN32
     void start(std::function<std::string(int *)> const &fun);
-#endif
-#if __EMSCRIPTEN__
+#elif __EMSCRIPTEN__
     void start(int exit_code);
-#endif
+#else
     void start(std::vector<std::string> const &command);
+#endif
 
     ~executor();
 
@@ -169,7 +169,6 @@ private:
     int m_exit_code = -1;
 #if _WIN32
     std::future<std::string> m_future;
-    PROCESS_INFORMATION m_pi;
 #elif __EMSCRIPTEN__ || __NX__
     // FIXME: do something
 #else
@@ -498,10 +497,6 @@ inline bool internal::executor::kill()
         // TODO
         return false; // cannot kill
     }
-    else
-    {
-        TerminateProcess(m_pi.hProcess, 0);
-    }
 #elif __EMSCRIPTEN__ || __NX__
     // FIXME: do something
     (void)timeout;
@@ -520,38 +515,18 @@ inline void internal::executor::start(std::function<std::string(int *)> const &f
     m_future = std::async(fun, &m_exit_code);
     m_running = true;
 }
-#endif
-
-#if __EMSCRIPTEN__
+#elif __EMSCRIPTEN__
 inline void internal::executor::start(int exit_code)
 {
     m_exit_code = exit_code;
 }
-#endif
-
+#else
 inline void internal::executor::start(std::vector<std::string> const &command)
 {
     stop();
     m_stdout.clear();
     m_exit_code = -1;
 
-#if _WIN32
-    STARTUPINFOW si;
-
-    memset(&si, 0, sizeof(si));
-    si.cb = sizeof(si);
-    si.dwFlags = STARTF_USESHOWWINDOW;
-    si.wShowWindow = SW_HIDE;
-
-    std::wstring wcommand = str2wstr(command);
-    if (!CreateProcessW(nullptr, (LPWSTR)wcommand.c_str(), nullptr, nullptr,
-                        FALSE, CREATE_NEW_CONSOLE, nullptr, nullptr, &si, &m_pi))
-        return; /* TODO: GetLastError()? */
-    WaitForInputIdle(m_pi.hProcess, INFINITE);
-#elif __EMSCRIPTEN__ || __NX__
-    // FIXME: do something
-    (void)command;
-#else
     int in[2], out[2];
     if (pipe(in) != 0 || pipe(out) != 0)
         return;
@@ -586,10 +561,10 @@ inline void internal::executor::start(std::vector<std::string> const &command)
     m_fd = out[0];
     auto flags = fcntl(m_fd, F_GETFL);
     fcntl(m_fd, F_SETFL, flags | O_NONBLOCK);
-#endif
 
     m_running = true;
 }
+#endif
 
 inline internal::executor::~executor()
 {
@@ -609,17 +584,6 @@ inline bool internal::executor::ready(int timeout /* = default_wait_timeout */)
             return false;
 
         m_stdout = m_future.get();
-    }
-    else
-    {
-        if (WaitForSingleObject(m_pi.hProcess, timeout) == WAIT_TIMEOUT)
-            return false;
-
-        DWORD ret;
-        GetExitCodeProcess(m_pi.hProcess, &ret);
-        m_exit_code = (int)ret;
-        CloseHandle(m_pi.hThread);
-        CloseHandle(m_pi.hProcess);
     }
 #elif __EMSCRIPTEN__ || __NX__
     // FIXME: do something
@@ -850,6 +814,9 @@ inline std::string internal::dialog::shell_quote(std::string const &str) const
 inline bool internal::dialog::check_program(std::string const &program)
 {
 #if _WIN32
+    (void)program;
+    return false;
+#elif __EMSCRIPTEN__
     (void)program;
     return false;
 #else
