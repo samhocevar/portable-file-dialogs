@@ -34,7 +34,7 @@
 #include <cstdlib>    // std::getenv()
 #include <fcntl.h>    // fcntl()
 #include <unistd.h>   // read()
-#include <signal.h>   // kill(), SIGKILL
+#include <csignal>    // ::kill, std::signal
 #include <sys/wait.h> // waitpid()
 #endif
 
@@ -147,7 +147,7 @@ public:
     std::string result(int *exit_code = nullptr);
 
     // High level function to abort
-    void abort();
+    void kill();
 
 #if _WIN32
     void start(std::function<std::string(int *)> const &fun);
@@ -225,6 +225,7 @@ class dialog : protected settings, protected platform
 {
 public:
     bool ready(int timeout = default_wait_timeout);
+    void kill();
 
 protected:
     explicit dialog();
@@ -489,7 +490,7 @@ inline std::string internal::executor::result(int *exit_code /* = nullptr */)
     return m_stdout;
 }
 
-inline void internal::executor::abort()
+inline void internal::executor::kill()
 {
 #if _WIN32
     if (m_future.valid())
@@ -504,7 +505,7 @@ inline void internal::executor::abort()
     // FIXME: do something
     (void)timeout;
 #else
-    kill(m_pid, SIGKILL);
+    ::kill(m_pid, SIGKILL);
 #endif
     stop();
 }
@@ -559,16 +560,17 @@ inline void internal::executor::start(std::string const &command)
     if (m_pid == 0)
     {
         close(in[1]);
-        dup2(in[0], 0);
         close(out[0]);
-        dup2(out[1], 1);
-        execl("/bin/sh", "-c", (command + " 2>/dev/null").c_str());
+        dup2(in[0], STDIN_FILENO);
+        dup2(out[1], STDOUT_FILENO);
+        execl("/bin/sh", "/bin/sh", "-c", (command + " 2>/dev/null").c_str(), NULL);
         exit(1);
     }
 
     close(in[1]);
     m_fd = out[0];
-    fcntl(m_fd, F_SETFL, O_NONBLOCK);
+    auto flags = fcntl(m_fd, F_GETFL);
+    fcntl(m_fd, F_SETFL, flags | O_NONBLOCK);
 #endif
 
     m_running = true;
@@ -610,19 +612,25 @@ inline bool internal::executor::ready(int timeout /* = default_wait_timeout */)
 #else
     char buf[BUFSIZ];
     ssize_t received = read(m_fd, buf, BUFSIZ - 1);
-    if (received == -1 && errno == EAGAIN)
-    {
-        // FIXME: this happens almost always at first iteration
-        std::this_thread::sleep_for(std::chrono::milliseconds(timeout));
-        return false;
-    }
     if (received > 0)
     {
         m_stdout += std::string(buf, received);
         return false;
     }
+
+    // Reap child process if it is dead. It is possible that the system has already reaped it
+    // (this happens when the calling application handles or ignores SIG_CHLD) and results in
+    // waitpid() failing with ECHILD. Otherwise we assume the child is running and we sleep for
+    // a little while.
     int status;
-    waitpid(m_pid, &status, 0);
+    pid_t child = waitpid(m_pid, &status, WNOHANG);
+    if (child != m_pid && (child >= 0 || errno != ECHILD))
+    {
+        // FIXME: this happens almost always at first iteration
+        std::this_thread::sleep_for(std::chrono::milliseconds(timeout));
+        return false;
+    }
+
     m_exit_code = WEXITSTATUS(status);
 #endif
 
@@ -714,6 +722,11 @@ inline HANDLE internal::platform::new_style_context::create()
 inline bool internal::dialog::ready(int timeout /* = default_wait_timeout */)
 {
     return m_async->ready(timeout);
+}
+
+inline void internal::dialog::kill()
+{
+    m_async->kill();
 }
 
 inline internal::dialog::dialog()

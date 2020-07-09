@@ -37,8 +37,10 @@ int main()
                           pfd::icon::warning);
 
     // Optional: do something while waiting for user action
-    while (!m.ready(1000))
+    for (int i = 0; i < 10 && !m.ready(1000); ++i)
         std::cout << "Waited 1 second for user input...\n";
+    if (!m.ready())
+        m.kill();
 
     // Do something according to the selected button
     switch (m.result())
