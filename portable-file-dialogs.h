@@ -147,7 +147,7 @@ public:
     std::string result(int *exit_code = nullptr);
 
     // High level function to abort
-    void kill();
+    bool kill();
 
 #if _WIN32
     void start(std::function<std::string(int *)> const &fun);
@@ -225,7 +225,7 @@ class dialog : protected settings, protected platform
 {
 public:
     bool ready(int timeout = default_wait_timeout);
-    void kill();
+    bool kill();
 
 protected:
     explicit dialog();
@@ -490,12 +490,13 @@ inline std::string internal::executor::result(int *exit_code /* = nullptr */)
     return m_stdout;
 }
 
-inline void internal::executor::kill()
+inline bool internal::executor::kill()
 {
 #if _WIN32
     if (m_future.valid())
     {
         // TODO
+        return false; // cannot kill
     }
     else
     {
@@ -504,10 +505,12 @@ inline void internal::executor::kill()
 #elif __EMSCRIPTEN__ || __NX__
     // FIXME: do something
     (void)timeout;
+    return false; // cannot kill
 #else
     ::kill(m_pid, SIGKILL);
 #endif
     stop();
+    return true;
 }
 
 #if _WIN32
@@ -737,9 +740,9 @@ inline bool internal::dialog::ready(int timeout /* = default_wait_timeout */)
     return m_async->ready(timeout);
 }
 
-inline void internal::dialog::kill()
+inline bool internal::dialog::kill()
 {
-    m_async->kill();
+    return m_async->kill();
 }
 
 inline internal::dialog::dialog()
