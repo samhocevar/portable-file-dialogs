@@ -855,7 +855,7 @@ inline internal::file_dialog::file_dialog(type in_type,
         OPENFILENAMEW ofn;
         memset(&ofn, 0, sizeof(ofn));
         ofn.lStructSize = sizeof(OPENFILENAMEW);
-        ofn.hwndOwner = GetForegroundWindow();
+        ofn.hwndOwner = GetActiveWindow();
 
         ofn.lpstrFilter = wfilter_list.c_str();
 
@@ -1121,7 +1121,7 @@ inline std::string internal::file_dialog::select_folder_vista(IFileDialog *ifd, 
     ifd->SetOptions(FOS_PICKFOLDERS);
     ifd->SetTitle(m_wtitle.c_str());
 
-    hr = ifd->Show(GetForegroundWindow());
+    hr = ifd->Show(GetActiveWindow());
     if (SUCCEEDED(hr))
     {
         IShellItem* item;
@@ -1287,7 +1287,7 @@ inline message::message(std::string const &title,
         auto wtitle = internal::str2wstr(title);
         // using set context to apply new visual style (required for all windows versions)
         new_style_context ctx;
-        *exit_code = MessageBoxW(GetForegroundWindow(), wtext.c_str(), wtitle.c_str(), style);
+        *exit_code = MessageBoxW(GetActiveWindow(), wtext.c_str(), wtitle.c_str(), style);
         return "";
     });
 #elif __EMSCRIPTEN__
