@@ -586,7 +586,18 @@ inline bool internal::executor::ready(int timeout /* = default_wait_timeout */)
     {
         auto status = m_future.wait_for(std::chrono::milliseconds(timeout));
         if (status != std::future_status::ready)
+        {
+            // On Windows, we need to run the message pump. If the async
+            // thread uses a Windows API dialog, it may be attached to the
+            // main thread and waiting for messages that only we can dispatch.
+            MSG msg;
+            while (PeekMessage(&msg, nullptr, 0, 0, PM_REMOVE))
+            {
+                TranslateMessage(&msg);
+                DispatchMessage(&msg);
+            }
             return false;
+        }
 
         m_stdout = m_future.get();
     }
@@ -627,19 +638,7 @@ inline void internal::executor::stop()
 {
     // Loop until the user closes the dialog
     while (!ready())
-    {
-#if _WIN32
-        // On Windows, we need to run the message pump. If the async
-        // thread uses a Windows API dialog, it may be attached to the
-        // main thread and waiting for messages that only we can dispatch.
-        MSG msg;
-        while (PeekMessage(&msg, nullptr, 0, 0, PM_REMOVE))
-        {
-            TranslateMessage(&msg);
-            DispatchMessage(&msg);
-        }
-#endif
-    }
+        ;
 }
 
 // dll implementation
@@ -911,7 +910,7 @@ inline internal::file_dialog::file_dialog(type in_type,
         OPENFILENAMEW ofn;
         memset(&ofn, 0, sizeof(ofn));
         ofn.lStructSize = sizeof(OPENFILENAMEW);
-        ofn.hwndOwner = GetForegroundWindow();
+        ofn.hwndOwner = GetActiveWindow();
 
         ofn.lpstrFilter = wfilter_list.c_str();
 
@@ -1186,7 +1185,7 @@ inline std::string internal::file_dialog::select_folder_vista(IFileDialog *ifd, 
     ifd->SetOptions(FOS_PICKFOLDERS);
     ifd->SetTitle(m_wtitle.c_str());
 
-    hr = ifd->Show(GetForegroundWindow());
+    hr = ifd->Show(GetActiveWindow());
     if (SUCCEEDED(hr))
     {
         IShellItem* item;
@@ -1361,7 +1360,6 @@ inline message::message(std::string const &title,
         auto wtitle = internal::str2wstr(title);
         // using set context to apply new visual style (required for all windows versions)
         new_style_context ctx;
-
         *exit_code = MessageBoxW(GetActiveWindow(), wtext.c_str(), wtitle.c_str(), style);
         return "";
     });
