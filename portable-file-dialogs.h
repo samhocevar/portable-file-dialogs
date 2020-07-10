@@ -150,11 +150,11 @@ public:
     bool kill();
 
 #if _WIN32
-    void start(std::function<std::string(int *)> const &fun);
+    void start_func(std::function<std::string(int *)> const &fun);
 #elif __EMSCRIPTEN__
     void start(int exit_code);
 #else
-    void start(std::vector<std::string> const &command);
+    void start_process(std::vector<std::string> const &command);
 #endif
 
     ~executor();
@@ -514,19 +514,21 @@ inline bool internal::executor::kill()
 }
 
 #if _WIN32
-inline void internal::executor::start(std::function<std::string(int *)> const &fun)
+inline void internal::executor::start_func(std::function<std::string(int *)> const &fun)
 {
     stop();
     m_future = std::async(fun, &m_exit_code);
     m_running = true;
 }
+
 #elif __EMSCRIPTEN__
 inline void internal::executor::start(int exit_code)
 {
     m_exit_code = exit_code;
 }
+
 #else
-inline void internal::executor::start(std::vector<std::string> const &command)
+inline void internal::executor::start_process(std::vector<std::string> const &command)
 {
     stop();
     m_stdout.clear();
@@ -783,7 +785,8 @@ inline std::string internal::dialog::get_icon_name(icon _icon) const
     }
 }
 
-std::ostream& operator <<(std::ostream &s, std::vector<std::string> const &v)
+// THis is only used for debugging purposes
+inline std::ostream& operator <<(std::ostream &s, std::vector<std::string> const &v)
 {
     int not_first = 0;
     for (auto &e : v)
@@ -794,6 +797,7 @@ std::ostream& operator <<(std::ostream &s, std::vector<std::string> const &v)
 // Properly quote a string for Powershell: replace ' or " with '' or ""
 // FIXME: we should probably get rid of newlines!
 // FIXME: the \" sequence seems unsafe, too!
+// XXX: this is no longer used but I would like to keep it around just in case
 inline std::string internal::dialog::powershell_quote(std::string const &str) const
 {
     return "'" + std::regex_replace(str, std::regex("['\"]"), "$&$&") + "'";
@@ -808,7 +812,7 @@ inline std::string internal::dialog::osascript_quote(std::string const &str) con
 }
 
 // Properly quote a string for the shell: just replace ' with '\''
-// XXX: this is no longer used but I would like to keep it somewhere
+// XXX: this is no longer used but I would like to keep it around just in case
 inline std::string internal::dialog::shell_quote(std::string const &str) const
 {
     return "'" + std::regex_replace(str, std::regex("'"), "'\\''") + "'";
@@ -825,7 +829,7 @@ inline bool internal::dialog::check_program(std::string const &program)
     return false;
 #else
     int exit_code = -1;
-    m_async->start({"/bin/sh", "-c", "which " + program + " 2>/dev/null"});
+    m_async->start_process({"/bin/sh", "-c", "which " + program});
     m_async->result(&exit_code);
     return exit_code == 0;
 #endif
@@ -849,8 +853,8 @@ inline internal::file_dialog::file_dialog(type in_type,
     }
     filter_list += '\0';
 
-    m_async->start([this, in_type, title, default_path, filter_list,
-                    options](int *exit_code) -> std::string
+    m_async->start_func([this, in_type, title, default_path, filter_list,
+                         options](int *exit_code) -> std::string
     {
         (void)exit_code;
         m_wtitle = internal::str2wstr(title);
@@ -1097,7 +1101,7 @@ inline internal::file_dialog::file_dialog(type in_type,
     if (flags(flag::is_verbose))
         std::cerr << "pfd: " << command << std::endl;
 
-    m_async->start(command);
+    m_async->start_process(command);
 #endif
 }
 
@@ -1312,7 +1316,7 @@ inline notify::notify(std::string const &title,
     if (flags(flag::is_verbose))
         std::cerr << "pfd: " << command << std::endl;
 
-    m_async->start(command);
+    m_async->start_process(command);
 #endif
 }
 
@@ -1351,7 +1355,7 @@ inline message::message(std::string const &title,
     m_mappings[IDRETRY] = button::retry;
     m_mappings[IDIGNORE] = button::ignore;
 
-    m_async->start([this, text, title, style](int* exit_code) -> std::string
+    m_async->start_func([this, text, title, style](int* exit_code) -> std::string
     {
         // Save our thread id so that the caller can cancel us
         m_tid = GetCurrentThreadId();
@@ -1514,7 +1518,7 @@ inline message::message(std::string const &title,
     if (flags(flag::is_verbose))
         std::cerr << "pfd: " << command << std::endl;
 
-    m_async->start(command);
+    m_async->start_process(command);
 #endif
 }
 
@@ -1555,7 +1559,7 @@ inline bool message::kill()
 #else
     return m_async->kill();
 #endif
-};
+}
 
 #if _WIN32
 inline BOOL CALLBACK message::kill_callback(HWND hwnd, LPARAM lParam)
