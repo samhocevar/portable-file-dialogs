@@ -172,6 +172,8 @@ private:
 #if _WIN32
     std::future<std::string> m_future;
     std::unordered_set<HWND> m_windows;
+    std::condition_variable m_cond;
+    std::mutex m_mutex;
     DWORD m_tid;
 #elif __EMSCRIPTEN__ || __NX__
     // FIXME: do something
@@ -499,14 +501,11 @@ inline bool internal::executor::kill()
     if (m_future.valid())
     {
         // Close all windows that weren’t open when we started the future
-        // FIXME: there is a race condition here when accessing m_windows, we don’t know
-        // whether it is actually ready.
         auto previous_windows = m_windows;
         EnumWindows(&enum_windows_callback, (LPARAM)this);
         for (auto hwnd : m_windows)
             if (previous_windows.find(hwnd) == previous_windows.end())
                 SendMessage(hwnd, WM_CLOSE, 0, 0);
-        return true;
     }
 #elif __EMSCRIPTEN__ || __NX__
     // FIXME: do something
@@ -537,15 +536,18 @@ inline void internal::executor::start_func(std::function<std::string(int *)> con
 {
     stop();
 
-    auto trampoline = [fun, this](int* x)
+    auto trampoline = [fun, this]()
     {
         // Save our thread id so that the caller can cancel us
         m_tid = GetCurrentThreadId();
         EnumWindows(&enum_windows_callback, (LPARAM)this);
+        m_cond.notify_all();
         return fun(&m_exit_code);
     };
 
-    m_future = std::async(std::launch::async, trampoline, &m_exit_code);
+    std::unique_lock<std::mutex> lock(m_mutex);
+    m_future = std::async(std::launch::async, trampoline);
+    m_cond.wait(lock);
     m_running = true;
 }
 
