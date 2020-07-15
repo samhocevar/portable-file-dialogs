@@ -1518,12 +1518,13 @@ inline message::message(std::string const &title,
         }
         else
         {
-            command.push_back("--");
+            std::string flag = "--";
             if (_icon == icon::warning || _icon == icon::error)
-                command.push_back("warning");
-            command.push_back("yesno");
+                flag += "warning";
+            flag += "yesno";
             if (_choice == choice::yes_no_cancel)
-                command.push_back("cancel");
+                flag += "cancel";
+            command.push_back(flag);
             if (_choice == choice::yes_no || _choice == choice::yes_no_cancel)
             {
                 m_mappings[0] = button::yes;
