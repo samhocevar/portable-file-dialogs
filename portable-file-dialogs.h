@@ -1020,6 +1020,9 @@ inline internal::file_dialog::file_dialog(type in_type,
             case type::open: command += " --getopenfilename"; break;
             case type::folder: command += " --getexistingdirectory"; break;
         }
+        if (options & opt::multiselect)
+            command += " --multiple";
+
         command += " " + shell_quote(default_path);
 
         std::string filter;
