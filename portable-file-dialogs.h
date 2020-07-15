@@ -42,6 +42,7 @@
 #include <memory>
 #include <iostream>
 #include <map>
+#include <unordered_set>
 #include <regex>
 #include <thread>
 #include <chrono>
@@ -151,6 +152,7 @@ public:
 
 #if _WIN32
     void start_func(std::function<std::string(int *)> const &fun);
+    static BOOL CALLBACK enum_windows_callback(HWND hwnd, LPARAM lParam);
 #elif __EMSCRIPTEN__
     void start(int exit_code);
 #else
@@ -169,6 +171,8 @@ private:
     int m_exit_code = -1;
 #if _WIN32
     std::future<std::string> m_future;
+    std::unordered_set<HWND> m_windows;
+    DWORD m_tid;
 #elif __EMSCRIPTEN__ || __NX__
     // FIXME: do something
 #else
@@ -301,15 +305,10 @@ public:
             icon _icon = icon::info);
 
     button result();
-    bool kill();
 
 private:
     // Some extra logic to map the exit code to button number
     std::map<int, button> m_mappings;
-#if _WIN32
-    static BOOL CALLBACK kill_callback(HWND hwnd, LPARAM lParam);
-    DWORD m_tid;
-#endif
 };
 
 //
@@ -499,8 +498,15 @@ inline bool internal::executor::kill()
 #if _WIN32
     if (m_future.valid())
     {
-        // TODO
-        return false; // cannot kill
+        // Close all windows that weren’t open when we started the future
+        // FIXME: there is a race condition here when accessing m_windows, we don’t know
+        // whether it is actually ready.
+        auto previous_windows = m_windows;
+        EnumWindows(&enum_windows_callback, (LPARAM)this);
+        for (auto hwnd : m_windows)
+            if (previous_windows.find(hwnd) == previous_windows.end())
+                SendMessage(hwnd, WM_CLOSE, 0, 0);
+        return true;
     }
 #elif __EMSCRIPTEN__ || __NX__
     // FIXME: do something
@@ -514,10 +520,32 @@ inline bool internal::executor::kill()
 }
 
 #if _WIN32
+inline BOOL CALLBACK internal::executor::enum_windows_callback(HWND hwnd, LPARAM lParam)
+{
+    auto that = (executor *)lParam;
+
+    DWORD pid;
+    auto tid = GetWindowThreadProcessId(hwnd, &pid);
+    if (tid == that->m_tid)
+        that->m_windows.insert(hwnd);
+    return TRUE;
+}
+#endif
+
+#if _WIN32
 inline void internal::executor::start_func(std::function<std::string(int *)> const &fun)
 {
     stop();
-    m_future = std::async(fun, &m_exit_code);
+
+    auto trampoline = [fun, this](int* x)
+    {
+        // Save our thread id so that the caller can cancel us
+        m_tid = GetCurrentThreadId();
+        EnumWindows(&enum_windows_callback, (LPARAM)this);
+        return fun(&m_exit_code);
+    };
+
+    m_future = std::async(trampoline, &m_exit_code);
     m_running = true;
 }
 
@@ -1357,9 +1385,6 @@ inline message::message(std::string const &title,
 
     m_async->start_func([this, text, title, style](int* exit_code) -> std::string
     {
-        // Save our thread id so that the caller can cancel us
-        m_tid = GetCurrentThreadId();
-
         auto wtext = internal::str2wstr(text);
         auto wtitle = internal::str2wstr(title);
         // using set context to apply new visual style (required for all windows versions)
@@ -1547,32 +1572,6 @@ inline button message::result()
         return m_mappings[exit_code];
     return exit_code == 0 ? button::ok : button::cancel;
 }
-
-inline bool message::kill()
-{
-#if _WIN32
-    // FIXME: there is a race condition here, we have no idea whether our window was created
-    // or not. We don’t even know if this->m_tid is valid. This needs a lot of additional work.
-    // Suggested strategy: keep doing this until m_async->ready() is true?
-    EnumWindows(&kill_callback, (LPARAM)this);
-    return true;
-#else
-    return m_async->kill();
-#endif
-}
-
-#if _WIN32
-inline BOOL CALLBACK message::kill_callback(HWND hwnd, LPARAM lParam)
-{
-    auto that = (message *)lParam;
-
-    DWORD pid;
-    auto tid = GetWindowThreadProcessId(hwnd, &pid);
-    if (tid == that->m_tid)
-        SendMessage(hwnd, WM_CLOSE, 0, 0);
-    return TRUE;
-}
-#endif
 
 // open_file implementation
 
