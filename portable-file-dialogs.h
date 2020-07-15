@@ -545,7 +545,7 @@ inline void internal::executor::start_func(std::function<std::string(int *)> con
         return fun(&m_exit_code);
     };
 
-    m_future = std::async(trampoline, &m_exit_code);
+    m_future = std::async(std::launch::async, trampoline, &m_exit_code);
     m_running = true;
 }
 
