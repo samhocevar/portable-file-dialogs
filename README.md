@@ -26,10 +26,11 @@ Experimental support for Emscripten is on its way.
 
 ## Documentation
 
-  * [Message Box API](doc/message.md)
-  * [Notification API](doc/notify.md)
-  * [File Open API](doc/open_file.md)
-  * [Folder Selection Open API](select_folder.md)
+  * `pfd::message`: [message box API](doc/message.md)
+  * `pfd::notify`: [notification API](doc/notify.md)
+  * `pfd::open_file`: [file open API](doc/open_file.md)
+  * `pfd::save_file`: [file save API](doc/save_file.md)
+  * `pfd::select_folder`: [folder selection API](select_folder.md)
 
 ## History
 

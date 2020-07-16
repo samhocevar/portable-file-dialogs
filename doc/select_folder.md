@@ -5,8 +5,12 @@ optional starting directory:
 
 ```cpp
 pfd::select_folder::select_folder(std::string const &title,
-                                  std::string const &default_path = "");
+                                  std::string const &default_path = "",
+                                  pfd::opt option = pfd::opt::none);
 ```
+
+The `option` parameter can be `pfd::opt::force_path` to force the operating system to use the
+provided path. Some systems default to the most recently used path, if applicable.
 
 The selected folder is queried using `pfd::select_folder::result()`. If the user canceled the
 operation, the returned string is empty:

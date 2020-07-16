@@ -8,8 +8,10 @@ flag to allow multiple selection:
 pfd::open_file::open_file(std::string const &title,
                           std::string const &initial_path,
                           std::vector<std::string> filters = { "All Files", "*" },
-                          bool allow_multiselect = false);
+                          pfd::opt option = pfd::opt::none);
 ```
+
+The `option` parameter can be `pfd::opt::multiselect` to allow selecting multiple files.
 
 The selected files are queried using `pfd::open_file::result()`. If the user canceled the
 operation, the returned list is empty:
@@ -47,7 +49,7 @@ auto selection = pfd::open_file("Select a file", ".",
                                 { "Image Files", "*.png *.jpg *.jpeg *.bmp",
                                   "Audio Files", "*.wav *.mp3",
                                   "All Files", "*" },
-                                true).result();
+                                pfd::opt::multiselect).result();
 // Do something with selection
 for (auto const &filename : dialog.result())
     std::cout << "Selected file: " << filename << "\n";
