@@ -10,7 +10,7 @@ A free C++11 file dialog library.
 
 ## Status
 
-The library is pretty robust. It is not as feature-complete as
+The library is now pretty robust. It is not as feature-complete as
 [Tiny File Dialogs](https://sourceforge.net/projects/tinyfiledialogs/),
 but has asynchonous dialogs, more maintainable code, and fewer potential
 security issues.
@@ -30,6 +30,10 @@ Experimental support for Emscripten is on its way.
   * [Notification API](doc/notify.md)
   * [File Open API](doc/open_file.md)
   * [Folder Selection Open API](select_folder.md)
+
+## History
+
+  * 0.1.0 (July 16, 2020): first public release
 
 ## Screenshots (Windows 10)
 
