@@ -87,9 +87,9 @@ enum class opt : uint8_t
     multiselect     = 0x1,
     // For file save, force overwrite and disable the confirmation dialog.
     force_overwrite = 0x2,
-    // For file open or save, force path to be the provided argument instead
-    // of the last opened directory, which is the Microsoft-recommended, user-
-    // friendly behaviour.
+    // For folder select, force path to be the provided argument instead
+    // of the last opened directory, which is the Microsoft-recommended,
+    // user-friendly behaviour.
     force_path      = 0x4,
 };
 
