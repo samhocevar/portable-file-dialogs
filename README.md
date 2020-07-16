@@ -26,10 +26,10 @@ Experimental support for Emscripten is on its way.
 
 ## Documentation
 
-  * [Message Box API](https://github.com/samhocevar/portable-file-dialogs/issues/1)
-  * [Notification API](https://github.com/samhocevar/portable-file-dialogs/issues/2)
-  * [File Open API](https://github.com/samhocevar/portable-file-dialogs/issues/3)
-  * [Folder Selection Open API](https://github.com/samhocevar/portable-file-dialogs/issues/13)
+  * [Message Box API](doc/message.md)
+  * [Notification API](doc/notify.md)
+  * [File Open API](doc/open_file.md)
+  * [Folder Selection Open API](select_folder.md)
 
 ## Screenshots (Windows 10)
 
