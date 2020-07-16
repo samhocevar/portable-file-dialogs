@@ -262,7 +262,7 @@ protected:
     file_dialog(type in_type,
                 std::string const &title,
                 std::string const &default_path = "",
-                std::vector<std::string> filters = {},
+                std::vector<std::string> const &filters = {},
                 opt options = opt::none);
 
 protected:
@@ -322,7 +322,7 @@ class open_file : public internal::file_dialog
 public:
     open_file(std::string const &title,
               std::string const &default_path = "",
-              std::vector<std::string> filters = { "All Files", "*" },
+              std::vector<std::string> const &filters = { "All Files", "*" },
               opt options = opt::none);
 
 #if defined(__has_cpp_attribute)
@@ -333,7 +333,7 @@ public:
 #endif
     open_file(std::string const &title,
               std::string const &default_path,
-              std::vector<std::string> filters,
+              std::vector<std::string> const &filters,
               bool allow_multiselect);
 
     std::vector<std::string> result();
@@ -344,7 +344,7 @@ class save_file : public internal::file_dialog
 public:
     save_file(std::string const &title,
               std::string const &default_path = "",
-              std::vector<std::string> filters = { "All Files", "*" },
+              std::vector<std::string> const &filters = { "All Files", "*" },
               opt options = opt::none);
 
 #if defined(__has_cpp_attribute)
@@ -355,7 +355,7 @@ public:
 #endif
     save_file(std::string const &title,
               std::string const &default_path,
-              std::vector<std::string> filters,
+              std::vector<std::string> const &filters,
               bool confirm_overwrite);
 
     std::string result();
@@ -870,7 +870,7 @@ inline bool internal::dialog::check_program(std::string const &program)
 inline internal::file_dialog::file_dialog(type in_type,
             std::string const &title,
             std::string const &default_path /* = "" */,
-            std::vector<std::string> filters /* = {} */,
+            std::vector<std::string> const &filters /* = {} */,
             opt options /* = opt::none */)
 {
 #if _WIN32
@@ -1583,7 +1583,7 @@ inline button message::result()
 
 inline open_file::open_file(std::string const &title,
                             std::string const &default_path /* = "" */,
-                            std::vector<std::string> filters /* = { "All Files", "*" } */,
+                            std::vector<std::string> const &filters /* = { "All Files", "*" } */,
                             opt options /* = opt::none */)
   : file_dialog(type::open, title, default_path, filters, options)
 {
@@ -1591,7 +1591,7 @@ inline open_file::open_file(std::string const &title,
 
 inline open_file::open_file(std::string const &title,
                             std::string const &default_path,
-                            std::vector<std::string> filters,
+                            std::vector<std::string> const &filters,
                             bool allow_multiselect)
   : open_file(title, default_path, filters,
               (allow_multiselect ? opt::multiselect : opt::none))
@@ -1607,7 +1607,7 @@ inline std::vector<std::string> open_file::result()
 
 inline save_file::save_file(std::string const &title,
                             std::string const &default_path /* = "" */,
-                            std::vector<std::string> filters /* = { "All Files", "*" } */,
+                            std::vector<std::string> const &filters /* = { "All Files", "*" } */,
                             opt options /* = opt::none */)
   : file_dialog(type::save, title, default_path, filters, options)
 {
@@ -1615,7 +1615,7 @@ inline save_file::save_file(std::string const &title,
 
 inline save_file::save_file(std::string const &title,
                             std::string const &default_path,
-                            std::vector<std::string> filters,
+                            std::vector<std::string> const &filters,
                             bool confirm_overwrite)
   : save_file(title, default_path, filters,
               (confirm_overwrite ? opt::none : opt::force_overwrite))
