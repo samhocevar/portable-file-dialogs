@@ -371,6 +371,13 @@ public:
     std::string result();
 };
 
+class explorer : public internal::dialog
+{
+public:
+    explorer(std::string const& directory,
+             std::vector<std::string> const& selection);
+};
+
 //
 // Below this are all the method implementations. You may choose to define the
 // macro PFD_SKIP_IMPLEMENTATION everywhere before including this header except
@@ -1639,6 +1646,26 @@ inline select_folder::select_folder(std::string const &title,
 inline std::string select_folder::result()
 {
     return string_result();
+}
+
+// explorer implementation
+inline explorer::explorer(std::string const& directory,
+                          std::vector<std::string> const& selection)
+{
+#ifdef _MSC_VER
+    CoInitialize(nullptr);
+    LPITEMIDLIST folder(ILCreateFromPath(internal::str2wstr(directory).c_str()));
+    std::vector<LPITEMIDLIST> items(selection.size());
+    for (size_t i = 0; i < selection.size(); ++i)
+        items[i] = ILCreateFromPath(internal::str2wstr(selection[i]).c_str());
+    SHOpenFolderAndSelectItems(folder, UINT(items.size()), (LPCITEMIDLIST *)items.data(), 0);
+    for (auto& item : items)
+        ILFree(item);
+    ILFree(folder);
+    CoUninitialize();
+#else
+    //TODO: implement
+#endif
 }
 
 #endif // PFD_SKIP_IMPLEMENTATION
