@@ -5,16 +5,15 @@ A free C++11 file dialog library.
   * works on Windows, Mac OS X, Linux
   * **single-header**, no extra library dependencies
   * **synchronous *or* asynchronous** (does not block the rest of your program!)
-
-Similar to [Tiny File Dialogs](https://sourceforge.net/projects/tinyfiledialogs/) but I like it better.
+  * **cancelable** (kill asynchronous dialogues without user interaction)
+  * **secure** (immune to shell-quote vulnerabilities)
 
 ## Status
 
-This is still experimental and nearly not as feature-complete as
+The library is pretty robust. It is not as feature-complete as
 [Tiny File Dialogs](https://sourceforge.net/projects/tinyfiledialogs/),
-but for once it seemed more constructive to start a project from scratch
-than try to fix its almost 1200 unchecked `strcat` or `strcpy` calls,
-lack of proper shell escaping, and synchronous architecture.
+but has asynchonous dialogs, more maintainable code, and fewer potential
+security issues.
 
 The currently available backends are:
 
@@ -22,6 +21,8 @@ The currently available backends are:
   * Mac OS X (using AppleScript)
   * GNOME desktop (using [Zenity](https://en.wikipedia.org/wiki/Zenity) or its clones Matedialog and Qarma)
   * KDE desktop (using [KDialog](https://github.com/KDE/kdialog))
+
+Experimental support for Emscripten is on its way.
 
 ## Documentation
 
