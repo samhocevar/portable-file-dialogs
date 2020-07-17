@@ -28,7 +28,7 @@ Experimental support for Emscripten is on its way.
 
   * [`pfd`](doc/pfd.md) general documentation
   * [`pfd::message`](doc/message.md) message box
-  * [`pfd::notify`]oc/notify.md) notification
+  * [`pfd::notify`](doc/notify.md) notification
   * [`pfd::open_file`](doc/open_file.md) file open
   * [`pfd::save_file`](doc/save_file.md) file save
   * [`pfd::select_folder`](doc/select_folder.md) folder selection
