@@ -1,7 +1,7 @@
 //
 //  Portable File Dialogs
 //
-//  Copyright © 2018—2019 Sam Hocevar <sam@hocevar.net>
+//  Copyright © 2018—2020 Sam Hocevar <sam@hocevar.net>
 //
 //  This program is free software. It comes without any warranty, to
 //  the extent permitted by applicable law. You can redistribute it
@@ -22,6 +22,13 @@
 
 int main()
 {
+    // Check that a backend is available
+    if (!pfd::settings::available())
+    {
+        std::cout << "Portable File Dialogs are not available on this platform.\n";
+        return 1;
+    }
+
     // Set verbosity to true
     pfd::settings::verbose(true);
 

@@ -101,11 +101,15 @@ inline bool operator &(opt a, opt b) { return bool(uint8_t(a) & uint8_t(b)); }
 class settings
 {
 public:
+    static bool available();
+
     static void verbose(bool value);
     static void rescan();
 
 protected:
     explicit settings(bool resync = false);
+
+    void internal_scan();
 
     inline bool is_osascript() const;
     inline bool is_zenity() const;
@@ -379,55 +383,6 @@ public:
 
 #if !defined PFD_SKIP_IMPLEMENTATION
 
-// settings implementation
-
-inline settings::settings(bool resync)
-{
-    flags(flag::is_scanned) &= !resync;
-}
-
-inline void settings::verbose(bool value)
-{
-    settings().flags(flag::is_verbose) = value;
-}
-
-inline void settings::rescan()
-{
-    settings(true);
-}
-
-inline bool settings::is_osascript() const
-{
-#if __APPLE__
-    return true;
-#else
-    return false;
-#endif
-}
-
-inline bool settings::is_zenity() const
-{
-    return flags(flag::has_zenity) ||
-           flags(flag::has_matedialog) ||
-           flags(flag::has_qarma);
-}
-
-inline bool settings::is_kdialog() const
-{
-    return flags(flag::has_kdialog);
-}
-
-inline bool const &settings::flags(flag in_flag) const
-{
-    static bool flags[size_t(flag::max_flag)];
-    return flags[size_t(in_flag)];
-}
-
-inline bool &settings::flags(flag in_flag)
-{
-    return const_cast<bool &>(static_cast<const settings *>(this)->flags(in_flag));
-}
-
 // internal free functions implementations
 
 namespace internal
@@ -484,6 +439,97 @@ static inline bool starts_with(std::string const &str, std::string const &prefix
 }
 
 } // namespace internal
+
+// settings implementation
+
+inline settings::settings(bool resync)
+{
+    flags(flag::is_scanned) &= !resync;
+}
+
+inline bool settings::available()
+{
+#if _WIN32
+    return true;
+#elif __APPLE__
+    return true;
+#else
+    internal_scan();
+    return flags(flag::has_zenity) ||
+           flags(flag::has_matedialog) ||
+           flags(flag::has_qarma) ||
+           flags(flag::has_kdialog);
+#endif
+}
+
+inline void settings::verbose(bool value)
+{
+    settings().flags(flag::is_verbose) = value;
+}
+
+inline void settings::rescan()
+{
+    settings(true);
+}
+
+inline void settings::internal_scan()
+{
+    if (flags(flag::is_scanned))
+        return;
+
+#if _WIN32
+    flags(flag::is_vista) = internal::is_vista();
+#elif !__APPLE__
+    flags(flag::has_zenity) = check_program("zenity");
+    flags(flag::has_matedialog) = check_program("matedialog");
+    flags(flag::has_qarma) = check_program("qarma");
+    flags(flag::has_kdialog) = check_program("kdialog");
+
+    // If multiple helpers are available, try to default to the best one
+    if (flags(flag::has_zenity) && flags(flag::has_kdialog))
+    {
+        auto desktop_name = std::getenv("XDG_SESSION_DESKTOP");
+        if (desktop_name && desktop_name == std::string("gnome"))
+            flags(flag::has_kdialog) = false;
+        else if (desktop_name && desktop_name == std::string("KDE"))
+            flags(flag::has_zenity) = false;
+    }
+#endif
+
+    flags(flag::is_scanned) = true;
+}
+
+inline bool settings::is_osascript() const
+{
+#if __APPLE__
+    return true;
+#else
+    return false;
+#endif
+}
+
+inline bool settings::is_zenity() const
+{
+    return flags(flag::has_zenity) ||
+           flags(flag::has_matedialog) ||
+           flags(flag::has_qarma);
+}
+
+inline bool settings::is_kdialog() const
+{
+    return flags(flag::has_kdialog);
+}
+
+inline bool const &settings::flags(flag in_flag) const
+{
+    static bool flags[size_t(flag::max_flag)];
+    return flags[size_t(in_flag)];
+}
+
+inline bool &settings::flags(flag in_flag)
+{
+    return const_cast<bool &>(static_cast<const settings *>(this)->flags(in_flag));
+}
 
 // executor implementation
 
@@ -748,28 +794,7 @@ inline bool internal::dialog::kill()
 inline internal::dialog::dialog()
   : m_async(std::make_shared<executor>())
 {
-    if (!flags(flag::is_scanned))
-    {
-#if _WIN32
-        flags(flag::is_vista) = is_vista();
-#elif !__APPLE__
-        flags(flag::has_zenity) = check_program("zenity");
-        flags(flag::has_matedialog) = check_program("matedialog");
-        flags(flag::has_qarma) = check_program("qarma");
-        flags(flag::has_kdialog) = check_program("kdialog");
-
-        // If multiple helpers are available, try to default to the best one
-        if (flags(flag::has_zenity) && flags(flag::has_kdialog))
-        {
-            auto desktop_name = std::getenv("XDG_SESSION_DESKTOP");
-            if (desktop_name && desktop_name == std::string("gnome"))
-                flags(flag::has_kdialog) = false;
-            else if (desktop_name && desktop_name == std::string("KDE"))
-                flags(flag::has_zenity) = false;
-        }
-#endif
-        flags(flag::is_scanned) = true;
-    }
+    internal_scan();
 }
 
 inline std::vector<std::string> internal::dialog::desktop_helper() const
