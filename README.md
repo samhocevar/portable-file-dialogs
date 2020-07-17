@@ -26,6 +26,7 @@ Experimental support for Emscripten is on its way.
 
 ## Documentation
 
+  * `pfd`: [general documentation](doc/pfd.md)
   * `pfd::message`: [message box API](doc/message.md)
   * `pfd::notify`: [notification API](doc/notify.md)
   * `pfd::open_file`: [file open API](doc/open_file.md)
