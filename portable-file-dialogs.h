@@ -1092,7 +1092,7 @@ inline internal::file_dialog::file_dialog(type in_type,
         command.push_back("--filename=" + default_path);
         command.push_back("--title");
         command.push_back(title);
-        command.push_back("--separator='\n'");
+        command.push_back("--separator=\n");
 
         for (size_t i = 0; i < filters.size() / 2; ++i)
         {
