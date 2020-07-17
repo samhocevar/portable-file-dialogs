@@ -94,4 +94,3 @@ Linux (GNOME desktop):
 
 Linux (KDE desktop):
 ![warning-kde](https://user-images.githubusercontent.com/245089/47149255-4dcccd00-d2d3-11e8-84c9-f85612784680.png)
-

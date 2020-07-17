@@ -88,4 +88,3 @@ Linux (GNOME desktop):
 
 Linux (KDE desktop):
 ![open-kde](https://user-images.githubusercontent.com/245089/47155866-0f8cd900-d2e6-11e8-8006-f14b948afc55.png)
-

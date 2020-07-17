@@ -118,4 +118,3 @@ This is probably only useful for debugging purposes.
 
 Calling `pfd::settings::verbose(true)` may help debug the library. It will output debug information
 to `std::cout` about some operations being performed.
-

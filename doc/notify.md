@@ -38,4 +38,3 @@ Linux (GNOME desktop):
 
 Linux (KDE desktop):
 ![notify-kde](https://user-images.githubusercontent.com/245089/47149206-27a72d00-d2d3-11e8-8f1b-96e462f08c2b.png)
-
