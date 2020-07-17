@@ -21,7 +21,7 @@
 #include <shlobj.h>
 #include <shellapi.h>
 #include <strsafe.h>
-#include <future>
+#include <future>     // std::async
 
 #elif __EMSCRIPTEN__
 #include <emscripten.h>
@@ -33,19 +33,19 @@
 #include <cstdio>     // popen()
 #include <cstdlib>    // std::getenv()
 #include <fcntl.h>    // fcntl()
-#include <unistd.h>   // read()
+#include <unistd.h>   // read(), pipe(), dup2()
 #include <csignal>    // ::kill, std::signal
 #include <sys/wait.h> // waitpid()
 #endif
 
-#include <string>
-#include <memory>
-#include <iostream>
-#include <map>
-#include <unordered_set>
-#include <regex>
-#include <thread>
-#include <chrono>
+#include <string>   // std::string
+#include <memory>   // std::shared_ptr
+#include <iostream> // std::ostream
+#include <map>      // std::map
+#include <set>      // std::set
+#include <regex>    // std::regex
+#include <thread>   // std::mutex, std::this_thread
+#include <chrono>   // std::chrono
 
 namespace pfd
 {
@@ -171,7 +171,7 @@ private:
     int m_exit_code = -1;
 #if _WIN32
     std::future<std::string> m_future;
-    std::unordered_set<HWND> m_windows;
+    std::set<HWND> m_windows;
     std::condition_variable m_cond;
     std::mutex m_mutex;
     DWORD m_tid;
