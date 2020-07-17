@@ -8,7 +8,7 @@ or as a [single file library](https://github.com/nothings/single_file_libs).
 Just include the main header file wherever needed:
 
 ```cpp
-#include portable-file-dialogs.h
+#include "portable-file-dialogs.h"
 
 /* ... */
 
@@ -25,13 +25,13 @@ header without the macro at least once, typically in a `pfd-impl.cpp` file.
 
 ```cpp
 // In pfd-impl.cpp
-#include portable-file-dialogs.h
+#include "portable-file-dialogs.h"
 ```
 
 ```cpp
 // In all other files
 #define PFD_SKIP_IMPLEMENTATION 1
-#include portable-file-dialogs.h
+#include "portable-file-dialogs.h"
 ```
 
 ### General concepts
@@ -99,7 +99,7 @@ information:
 
 ### Settings
 
-The library can be configured through the `pfd::settings` class.
+The library can be queried and configured through the `pfd::settings` class.
 
 ```cpp
 bool pfd::settings::available();
@@ -108,8 +108,9 @@ void pfd::settings::rescan();
 ```
 
 The return value of `pfd::settings::available()` indicates whether a suitable dialog backend (such
-as Zenity or KDialog on Linux) has been found. If not found, the library will not work and all
-dialog invocations will be no-ops.
+as Zenity or KDialog on Linux) has been found. If not, the library will not work and all dialog
+invocations will be no-ops. The program will not crash but you should account for this situation
+and add a fallback mechanism or exit gracefully.
 
 Calling `pfd::settings::rescan()` will force a rescan of available backends. This may change the
 result of `pfd::settings::available()` if a backend was installed on the system in the meantime.
