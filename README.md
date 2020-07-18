@@ -2,11 +2,11 @@
 
 A free C++11 file dialog library.
 
-    * works on Windows, Mac OS X, Linux
-    * **single-header**, no extra library dependencies
-    * **synchronous *or* asynchronous** (does not block the rest of your program!)
-    * **cancelable** (kill asynchronous dialogues without user interaction)
-    * **secure** (immune to shell-quote vulnerabilities)
+ * works on Windows, Mac OS X, Linux
+ * **single-header**, no extra library dependencies
+ * **synchronous *or* asynchronous** (does not block the rest of your program!)
+ * **cancelable** (kill asynchronous dialogues without user interaction)
+ * **secure** (immune to shell-quote vulnerabilities)
 
 ## Status
 
@@ -17,25 +17,25 @@ security issues.
 
 The currently available backends are:
 
-    * Win32 API (all known versions of Windows)
-    * Mac OS X (using AppleScript)
-    * GNOME desktop (using [Zenity](https://en.wikipedia.org/wiki/Zenity) or its clones Matedialog and Qarma)
-    * KDE desktop (using [KDialog](https://github.com/KDE/kdialog))
+ * Win32 API (all known versions of Windows)
+ * Mac OS X (using AppleScript)
+ * GNOME desktop (using [Zenity](https://en.wikipedia.org/wiki/Zenity) or its clones Matedialog and Qarma)
+ * KDE desktop (using [KDialog](https://github.com/KDE/kdialog))
 
 Experimental support for Emscripten is on its way.
 
 ## Documentation
 
-    * [`pfd`](doc/pfd.md) general documentation
-    * [`pfd::message`](doc/message.md) message box
-    * [`pfd::notify`](doc/notify.md) notification
-    * [`pfd::open_file`](doc/open_file.md) file open
-    * [`pfd::save_file`](doc/save_file.md) file save
-    * [`pfd::select_folder`](doc/select_folder.md) folder selection
+ * [`pfd`](doc/pfd.md) general documentation
+ * [`pfd::message`](doc/message.md) message box
+ * [`pfd::notify`](doc/notify.md) notification
+ * [`pfd::open_file`](doc/open_file.md) file open
+ * [`pfd::save_file`](doc/save_file.md) file save
+ * [`pfd::select_folder`](doc/select_folder.md) folder selection
 
 ## History
 
-    * 0.1.0 (July 16, 2020): first public release
+ * 0.1.0 (July 16, 2020): first public release
 
 ## Screenshots (Windows 10)
 
