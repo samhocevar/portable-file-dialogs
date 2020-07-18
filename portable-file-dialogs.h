@@ -109,7 +109,7 @@ public:
 protected:
     explicit settings(bool resync = false);
 
-    void internal_scan();
+    bool check_program(std::string const &program);
 
     inline bool is_osascript() const;
     inline bool is_zenity() const;
@@ -246,8 +246,6 @@ protected:
     std::string powershell_quote(std::string const &str) const;
     std::string osascript_quote(std::string const &str) const;
     std::string shell_quote(std::string const &str) const;
-
-    bool check_program(std::string const &program);
 
     // Keep handle to executing command
     std::shared_ptr<executor> m_async;
@@ -445,35 +443,7 @@ static inline bool starts_with(std::string const &str, std::string const &prefix
 inline settings::settings(bool resync)
 {
     flags(flag::is_scanned) &= !resync;
-}
 
-inline bool settings::available()
-{
-#if _WIN32
-    return true;
-#elif __APPLE__
-    return true;
-#else
-    internal_scan();
-    return flags(flag::has_zenity) ||
-           flags(flag::has_matedialog) ||
-           flags(flag::has_qarma) ||
-           flags(flag::has_kdialog);
-#endif
-}
-
-inline void settings::verbose(bool value)
-{
-    settings().flags(flag::is_verbose) = value;
-}
-
-inline void settings::rescan()
-{
-    settings(true);
-}
-
-inline void settings::internal_scan()
-{
     if (flags(flag::is_scanned))
         return;
 
@@ -497,6 +467,49 @@ inline void settings::internal_scan()
 #endif
 
     flags(flag::is_scanned) = true;
+}
+
+inline bool settings::available()
+{
+#if _WIN32
+    return true;
+#elif __APPLE__
+    return true;
+#else
+    settings tmp;
+    return tmp.flags(flag::has_zenity) ||
+           tmp.flags(flag::has_matedialog) ||
+           tmp.flags(flag::has_qarma) ||
+           tmp.flags(flag::has_kdialog);
+#endif
+}
+
+inline void settings::verbose(bool value)
+{
+    settings().flags(flag::is_verbose) = value;
+}
+
+inline void settings::rescan()
+{
+    settings(/* resync = */ true);
+}
+
+// Check whether a program is present using “which”.
+inline bool settings::check_program(std::string const &program)
+{
+#if _WIN32
+    (void)program;
+    return false;
+#elif __EMSCRIPTEN__
+    (void)program;
+    return false;
+#else
+    int exit_code = -1;
+    internal::executor async;
+    async.start_process({"/bin/sh", "-c", "which " + program});
+    async.result(&exit_code);
+    return exit_code == 0;
+#endif
 }
 
 inline bool settings::is_osascript() const
@@ -794,7 +807,6 @@ inline bool internal::dialog::kill()
 inline internal::dialog::dialog()
   : m_async(std::make_shared<executor>())
 {
-    internal_scan();
 }
 
 inline std::vector<std::string> internal::dialog::desktop_helper() const
@@ -871,23 +883,6 @@ inline std::string internal::dialog::osascript_quote(std::string const &str) con
 inline std::string internal::dialog::shell_quote(std::string const &str) const
 {
     return "'" + std::regex_replace(str, std::regex("'"), "'\\''") + "'";
-}
-
-// Check whether a program is present using “which”.
-inline bool internal::dialog::check_program(std::string const &program)
-{
-#if _WIN32
-    (void)program;
-    return false;
-#elif __EMSCRIPTEN__
-    (void)program;
-    return false;
-#else
-    int exit_code = -1;
-    m_async->start_process({"/bin/sh", "-c", "which " + program});
-    m_async->result(&exit_code);
-    return exit_code == 0;
-#endif
 }
 
 // file_dialog implementation
