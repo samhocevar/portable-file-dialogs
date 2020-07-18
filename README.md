@@ -8,6 +8,8 @@ A free C++11 file dialog library.
 -   **cancelable** (kill asynchronous dialogues without user interaction)
 -   **secure** (immune to shell-quote vulnerabilities)
 
+[![Codacy Badge](https://app.codacy.com/project/badge/Grade/a25d3fd6959a4333871f630ac70b6e09)](https://www.codacy.com/manual/samhocevar/portable-file-dialogs?utm_source=github.com&amp;utm_medium=referral&amp;utm_content=samhocevar/portable-file-dialogs&amp;utm_campaign=Badge_Grade)
+
 ## Status
 
 The library is now pretty robust. It is not as feature-complete as
