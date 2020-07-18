@@ -80,17 +80,18 @@ switch (box.result())
 
 ## Screenshots
 
-Windows 10:
+#### Windows 10
+
 ![warning-win32](https://user-images.githubusercontent.com/245089/47136607-76919a00-d2b4-11e8-8f42-e2d62c4f9570.png)
 
-Mac OS X (dark theme):
-![warning-osx-dark](https://user-images.githubusercontent.com/245089/56053001-22dba700-5d53-11e9-8233-ca7a2c58188d.png)
+#### Mac OS X
 
-Mac OS X (light theme):
-![warning-osx-light](https://user-images.githubusercontent.com/245089/56053055-49014700-5d53-11e9-8306-e9a03a25e044.png)
+![warning-osx-dark](https://user-images.githubusercontent.com/245089/56053001-22dba700-5d53-11e9-8233-ca7a2c58188d.png) ![warning-osx-light](https://user-images.githubusercontent.com/245089/56053055-49014700-5d53-11e9-8306-e9a03a25e044.png)
 
-Linux (GNOME desktop):
+#### Linux (GNOME desktop)
+
 ![warning-gnome](https://user-images.githubusercontent.com/245089/47140824-8662ab80-d2bf-11e8-9c87-2742dd5b58af.png)
 
-Linux (KDE desktop):
+#### Linux (KDE desktop)
+
 ![warning-kde](https://user-images.githubusercontent.com/245089/47149255-4dcccd00-d2d3-11e8-84c9-f85612784680.png)
