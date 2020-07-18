@@ -697,7 +697,7 @@ inline bool internal::executor::ready(int timeout /* = default_wait_timeout */)
     (void)timeout;
 #else
     char buf[BUFSIZ];
-    ssize_t received = read(m_fd, buf, BUFSIZ);
+    ssize_t received = read(m_fd, buf, BUFSIZ); // Flawfinder: ignore
     if (received > 0)
     {
         m_stdout += std::string(buf, received);
