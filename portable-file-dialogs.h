@@ -1505,17 +1505,18 @@ inline message::message(std::string const &title,
         switch (_choice)
         {
             case choice::ok_cancel:
-                command.insert(command.end(), { "--question", "--ok-label=OK", "--cancel-label=Cancel" }); break;
+                command.insert(command.end(), { "--question", "--cancel-label=Cancel", "--ok-label=OK" }); break;
             case choice::yes_no:
                 // Do not use standard --question because it causes “No” to return -1,
                 // which is inconsistent with the “Yes/No/Cancel” mode below.
-                command.insert(command.end(), { "--question", "--switch", "--extra-button", "No", "--extra-button", "Yes" }); break;
+                command.insert(command.end(), { "--question", "--switch", "--extra-button=No", "--extra-button=Yes" }); break;
             case choice::yes_no_cancel:
-                command.insert(command.end(), { "--question", "--switch", "--extra-button", "No", "--extra-button", "Yes", "--extra-button", "Cancel" }); break;
+                command.insert(command.end(), { "--question", "--switch", "--extra-button=Cancel", "--extra-button=No", "--extra-button=Yes" }); break;
             case choice::retry_cancel:
-                command.insert(command.end(), { "--question", "--switch", "--extra-button", "Retry", "--extra-button", "Cancel" }); break;
+                command.insert(command.end(), { "--question", "--switch", "--extra-button=Cancel", "--extra-button=Retry" }); break;
             case choice::abort_retry_ignore:
-                command.insert(command.end(), { "--question", "--switch", "--extra-button", "Abort", "--extra-button", "Retry", "--extra-button", "Ignore" }); break;
+                command.insert(command.end(), { "--question", "--switch", "--extra-button=Ignore", "--extra-button=Abort", "--extra-button=Retry" }); break;
+            case choice::ok:
             default:
                 switch (_icon)
                 {
@@ -1526,7 +1527,7 @@ inline message::message(std::string const &title,
         }
 
         command.insert(command.end(), { "--title", title,
-                                        "--width", "300", "--height", "0", // sensible defaults
+                                        "--width=300", "--height=0", // sensible defaults
                                         "--text", text,
                                         "--icon-name=dialog-" + get_icon_name(_icon) });
     }
