@@ -16,9 +16,9 @@
 #ifndef WIN32_LEAN_AND_MEAN
 #   define WIN32_LEAN_AND_MEAN 1
 #endif
-#include <windows.h>
+#include <Windows.h>
 #include <commdlg.h>
-#include <shlobj.h>
+#include <ShlObj.h>
 #include <shellapi.h>
 #include <strsafe.h>
 #include <future>     // std::async
@@ -233,15 +233,15 @@ protected:
 class dialog : protected settings, protected platform
 {
 public:
-    bool ready(int timeout = default_wait_timeout);
-    bool kill();
+    bool ready(int timeout = default_wait_timeout) const;
+    bool kill() const;
 
 protected:
     explicit dialog();
 
     std::vector<std::string> desktop_helper() const;
-    std::string buttons_to_name(choice _choice) const;
-    std::string get_icon_name(icon _icon) const;
+    static std::string buttons_to_name(choice _choice);
+    static std::string get_icon_name(icon _icon);
 
     std::string powershell_quote(std::string const &str) const;
     std::string osascript_quote(std::string const &str) const;
@@ -794,12 +794,12 @@ inline HANDLE internal::platform::new_style_context::create()
 
 // dialog implementation
 
-inline bool internal::dialog::ready(int timeout /* = default_wait_timeout */)
+inline bool internal::dialog::ready(const int timeout /* = default_wait_timeout */) const
 {
     return m_async->ready(timeout);
 }
 
-inline bool internal::dialog::kill()
+inline bool internal::dialog::kill() const
 {
     return m_async->kill();
 }
@@ -822,7 +822,7 @@ inline std::vector<std::string> internal::dialog::desktop_helper() const
 #endif
 }
 
-inline std::string internal::dialog::buttons_to_name(choice _choice) const
+inline std::string internal::dialog::buttons_to_name(const choice _choice)
 {
     switch (_choice)
     {
@@ -835,7 +835,7 @@ inline std::string internal::dialog::buttons_to_name(choice _choice) const
     }
 }
 
-inline std::string internal::dialog::get_icon_name(icon _icon) const
+inline std::string internal::dialog::get_icon_name(const icon _icon)
 {
     switch (_icon)
     {
