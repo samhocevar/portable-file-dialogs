@@ -541,7 +541,7 @@ inline bool const &settings::flags(flag in_flag) const
 
 inline bool &settings::flags(flag in_flag)
 {
-    return const_cast<bool &>(static_cast<const settings *>(this)->flags(in_flag));
+    return const_cast<bool &>(static_cast<settings const *>(this)->flags(in_flag));
 }
 
 // executor implementation
@@ -794,7 +794,7 @@ inline HANDLE internal::platform::new_style_context::create()
 
 // dialog implementation
 
-inline bool internal::dialog::ready(const int timeout /* = default_wait_timeout */) const
+inline bool internal::dialog::ready(int timeout /* = default_wait_timeout */) const
 {
     return m_async->ready(timeout);
 }
@@ -822,7 +822,7 @@ inline std::vector<std::string> internal::dialog::desktop_helper() const
 #endif
 }
 
-inline std::string internal::dialog::buttons_to_name(const choice _choice)
+inline std::string internal::dialog::buttons_to_name(choice _choice)
 {
     switch (_choice)
     {
@@ -835,7 +835,7 @@ inline std::string internal::dialog::buttons_to_name(const choice _choice)
     }
 }
 
-inline std::string internal::dialog::get_icon_name(const icon _icon)
+inline std::string internal::dialog::get_icon_name(icon _icon)
 {
     switch (_icon)
     {
