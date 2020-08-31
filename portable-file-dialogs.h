@@ -1100,7 +1100,7 @@ inline internal::file_dialog::file_dialog(type in_type,
         }
         else
         {
-            script += "\nPOSIX path of ret";
+            script += "\ntext 1 through -2 of POSIX path of ret";
         }
 
         command.push_back("-e");
