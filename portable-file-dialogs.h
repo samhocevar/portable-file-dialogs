@@ -1163,9 +1163,12 @@ inline std::string internal::file_dialog::string_result()
 #if _WIN32
     return m_async->result();
 #else
-    // Strip the newline character
     auto ret = m_async->result();
-    return ret.back() == '\n' ? ret.substr(0, ret.size() - 1) : ret;
+    // Strip potential trailing newline (zenity). Also strip trailing slash
+    // added by osascript for consistency with other backends.
+    while (ret.back() == '\n' || ret.back() == '/')
+        ret = ret.substr(0, ret.size() - 1);
+    return ret;
 #endif
 }
 
