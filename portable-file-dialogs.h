@@ -19,6 +19,7 @@
 #include <Windows.h>
 #include <commdlg.h>
 #include <ShlObj.h>
+#include <ShObjIdl.h> // IFileDialog
 #include <shellapi.h>
 #include <strsafe.h>
 #include <future>     // std::async
