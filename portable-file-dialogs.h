@@ -1023,8 +1023,8 @@ inline internal::file_dialog::file_dialog(type in_type,
         for (wchar_t const *p = woutput.c_str(); *p; )
         {
             auto filename = internal::wstr2str(p);
-            p += filename.size();
-            // In multiselect mode, we advance p one step more and
+            p += wcslen(p);
+            // In multiselect mode, we advance p one wchar further and
             // check for another filename. If there is one and the
             // prefix is empty, it means we just read the prefix.
             if ((options & opt::multiselect) && *++p && prefix.empty())
