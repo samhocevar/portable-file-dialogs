@@ -994,30 +994,29 @@ inline internal::file_dialog::file_dialog(type in_type,
 
         dll comdlg32("comdlg32.dll");
 
+        // Apply new visual style (required for windows XP)
+        new_style_context ctx;
+
         if (in_type == type::save)
         {
             if (!(options & opt::force_overwrite))
                 ofn.Flags |= OFN_OVERWRITEPROMPT;
-
-            // using set context to apply new visual style (required for windows XP)
-            new_style_context ctx;
 
             dll::proc<BOOL WINAPI (LPOPENFILENAMEW)> get_save_file_name(comdlg32, "GetSaveFileNameW");
             if (get_save_file_name(&ofn) == 0)
                 return "";
             return internal::wstr2str(woutput.c_str());
         }
+        else
+        {
+            if (options & opt::multiselect)
+                ofn.Flags |= OFN_ALLOWMULTISELECT;
+            ofn.Flags |= OFN_PATHMUSTEXIST;
 
-        if (options & opt::multiselect)
-            ofn.Flags |= OFN_ALLOWMULTISELECT;
-        ofn.Flags |= OFN_PATHMUSTEXIST;
-
-        // using set context to apply new visual style (required for windows XP)
-        new_style_context ctx;
-
-        dll::proc<BOOL WINAPI (LPOPENFILENAMEW)> get_open_file_name(comdlg32, "GetOpenFileNameW");
-        if (get_open_file_name(&ofn) == 0)
-            return "";
+            dll::proc<BOOL WINAPI (LPOPENFILENAMEW)> get_open_file_name(comdlg32, "GetOpenFileNameW");
+            if (get_open_file_name(&ofn) == 0)
+                return "";
+        }
 
         std::string prefix;
         for (wchar_t const *p = woutput.c_str(); *p; )
@@ -1416,7 +1415,7 @@ inline message::message(std::string const &title,
     {
         auto wtext = internal::str2wstr(text);
         auto wtitle = internal::str2wstr(title);
-        // using set context to apply new visual style (required for all windows versions)
+        // Apply new visual style (required for all Windows versions)
         new_style_context ctx;
         *exit_code = MessageBoxW(GetActiveWindow(), wtext.c_str(), wtitle.c_str(), style);
         return "";
