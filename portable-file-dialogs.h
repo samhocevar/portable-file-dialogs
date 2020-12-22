@@ -217,6 +217,18 @@ protected:
         HMODULE handle;
     };
 
+    // Helper class around CoInitialize() and CoUnInitialize()
+    class ole32_dll : public dll
+    {
+    public:
+        ole32_dll();
+        ~ole32_dll();
+        bool is_initialized();
+
+    private:
+        HRESULT m_state;
+    };
+
     // Helper class around CreateActCtx() and ActivateActCtx()
     class new_style_context
     {
@@ -747,6 +759,28 @@ inline internal::platform::dll::~dll()
 }
 #endif // _WIN32
 
+// ole32_dll implementation
+
+#if _WIN32
+inline internal::platform::ole32_dll::ole32_dll()
+    : dll("ole32.dll")
+{
+    auto coinit = proc<HRESULT WINAPI (LPVOID, DWORD)>(*this, "CoInitializeEx");
+    m_state = coinit(nullptr, COINIT_APARTMENTTHREADED);
+}
+
+inline internal::platform::ole32_dll::~ole32_dll()
+{
+    if (is_initialized())
+        proc<void WINAPI ()>(*this, "CoUninitialize")();
+}
+
+inline bool internal::platform::ole32_dll::is_initialized()
+{
+    return m_state == S_OK || m_state == S_FALSE;
+}
+#endif
+
 // new_style_context implementation
 
 #if _WIN32
@@ -912,13 +946,15 @@ inline internal::file_dialog::file_dialog(type in_type,
         m_wdefault_path = internal::str2wstr(default_path);
         auto wfilter_list = internal::str2wstr(filter_list);
 
+        // Initialise COM. This is required for the new folder selection window,
+        // (see https://github.com/samhocevar/portable-file-dialogs/pull/21)
+        // and to avoid random crashes with GetOpenFileNameW() (see
+        // https://github.com/samhocevar/portable-file-dialogs/issues/51)
+        ole32_dll ole32;
+
         // Folder selection uses a different method
         if (in_type == type::folder)
         {
-            dll ole32("ole32.dll");
-
-            auto status = dll::proc<HRESULT WINAPI (LPVOID, DWORD)>(ole32, "CoInitializeEx")
-                              (nullptr, COINIT_APARTMENTTHREADED);
             if (flags(flag::is_vista))
             {
                 // On Vista and higher we should be able to use IFileDialog for folder selection
@@ -939,9 +975,7 @@ inline internal::file_dialog::file_dialog(type in_type,
 
             if (flags(flag::is_vista))
             {
-                // This hangs on Windows XP, as reported here:
-                // https://github.com/samhocevar/portable-file-dialogs/pull/21
-                if (status == S_OK)
+                if (ole32.is_initialized())
                     bi.ulFlags |= BIF_NEWDIALOGSTYLE;
                 bi.ulFlags |= BIF_EDITBOX;
                 bi.ulFlags |= BIF_STATUSTEXT;
@@ -957,8 +991,6 @@ inline internal::file_dialog::file_dialog(type in_type,
                 ret = internal::wstr2str(buffer);
                 delete[] buffer;
             }
-            if (status == S_OK)
-                dll::proc<void WINAPI ()>(ole32, "CoUninitialize")();
             return ret;
         }
 
@@ -1259,8 +1291,7 @@ inline std::string internal::file_dialog::select_folder_vista(IFileDialog *ifd, 
             if (wselected)
             {
                 result = internal::wstr2str(std::wstring(wselected));
-                dll ole32("ole32.dll");
-                dll::proc<void WINAPI (LPVOID)>(ole32, "CoTaskMemFree")(wselected);
+                dll::proc<void WINAPI (LPVOID)>(ole32_dll(), "CoTaskMemFree")(wselected);
             }
         }
     }
