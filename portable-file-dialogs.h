@@ -765,8 +765,10 @@ inline internal::platform::dll::~dll()
 inline internal::platform::ole32_dll::ole32_dll()
     : dll("ole32.dll")
 {
+    // Use COINIT_MULTITHREADED because COINIT_APARTMENTTHREADED causes crashes.
+    // See https://github.com/samhocevar/portable-file-dialogs/issues/51
     auto coinit = proc<HRESULT WINAPI (LPVOID, DWORD)>(*this, "CoInitializeEx");
-    m_state = coinit(nullptr, COINIT_APARTMENTTHREADED);
+    m_state = coinit(nullptr, COINIT_MULTITHREADED);
 }
 
 inline internal::platform::ole32_dll::~ole32_dll()
