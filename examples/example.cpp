@@ -29,26 +29,23 @@ int main()
         return 1;
     }
 
-    // Set verbosity to true
-    pfd::settings::verbose(true);
-
     // Notification
-    pfd::notify("Important Notification",
-                "This is ' a message, pay \" attention \\ to it!",
-                pfd::icon::info);
+    pfd::notify::create("Important Notification",
+                        "This is ' a message, pay \" attention \\ to it!",
+                        pfd::icon::info);
 
     // Message box with nice message
-    auto m = pfd::message("Personal Message",
-                          "You are an amazing person, don’t let anyone make you think otherwise.",
-                          pfd::choice::yes_no_cancel,
-                          pfd::icon::warning);
+    auto m = pfd::message::create("Personal Message",
+                                  "You are an amazing person, don’t let anyone make you think otherwise.",
+                                  pfd::choice::yes_no_cancel,
+                                  pfd::icon::warning);
 
     // Optional: do something while waiting for user action
-    for (int i = 0; i < 10 && !m.ready(1000); ++i)
+    for (int i = 0; i < 10 && !m->ready(1000); ++i)
         std::cout << "Waited 1 second for user input...\n";
 
     // Do something according to the selected button
-    switch (m.result())
+    switch (m->result())
     {
         case pfd::button::yes: std::cout << "User agreed.\n"; break;
         case pfd::button::no: std::cout << "User disagreed.\n"; break;
@@ -57,16 +54,16 @@ int main()
     }
 
     // Directory selection
-    auto dir = pfd::select_folder("Select any directory", DEFAULT_PATH).result();
+    auto dir = pfd::select_folder::create("Select any directory", DEFAULT_PATH)->result();
     std::cout << "Selected dir: " << dir << "\n";
 
     // File open
-    auto f = pfd::open_file("Choose files to read", DEFAULT_PATH,
-                            { "Text Files (.txt .text)", "*.txt *.text",
-                              "All Files", "*" },
-                            pfd::opt::multiselect);
+    auto f = pfd::open_file::create("Choose files to read", DEFAULT_PATH,
+                                    { "Text Files (.txt .text)", "*.txt *.text",
+                                      "All Files", "*" },
+                                    pfd::opt::multiselect);
     std::cout << "Selected files:";
-    for (auto const &name : f.result())
+    for (auto const &name : f->result())
         std::cout << " " + name;
     std::cout << "\n";
 }
@@ -79,32 +76,31 @@ void api()
     pfd::settings::rescan();
 
     // pfd::notify
-    pfd::notify("", "");
-    pfd::notify("", "", pfd::icon::info);
-    pfd::notify("", "", pfd::icon::warning);
-    pfd::notify("", "", pfd::icon::error);
-    pfd::notify("", "", pfd::icon::question);
+    pfd::notify::create("", "");
+    pfd::notify::create("", "", pfd::icon::info);
+    pfd::notify::create("", "", pfd::icon::warning);
+    pfd::notify::create("", "", pfd::icon::error);
+    pfd::notify::create("", "", pfd::icon::question);
 
-    pfd::notify a("", "");
-    (void)a.ready();
-    (void)a.ready(42);
+    auto a = pfd::notify::create("", "");
+    (void)a->ready();
+    (void)a->ready(42);
 
     // pfd::message
-    pfd::message("", "");
-    pfd::message("", "", pfd::choice::ok);
-    pfd::message("", "", pfd::choice::ok_cancel);
-    pfd::message("", "", pfd::choice::yes_no);
-    pfd::message("", "", pfd::choice::yes_no_cancel);
-    pfd::message("", "", pfd::choice::retry_cancel);
-    pfd::message("", "", pfd::choice::abort_retry_ignore);
-    pfd::message("", "", pfd::choice::ok, pfd::icon::info);
-    pfd::message("", "", pfd::choice::ok, pfd::icon::warning);
-    pfd::message("", "", pfd::choice::ok, pfd::icon::error);
-    pfd::message("", "", pfd::choice::ok, pfd::icon::question);
+    pfd::message::create("", "");
+    pfd::message::create("", "", pfd::choice::ok);
+    pfd::message::create("", "", pfd::choice::ok_cancel);
+    pfd::message::create("", "", pfd::choice::yes_no);
+    pfd::message::create("", "", pfd::choice::yes_no_cancel);
+    pfd::message::create("", "", pfd::choice::retry_cancel);
+    pfd::message::create("", "", pfd::choice::abort_retry_ignore);
+    pfd::message::create("", "", pfd::choice::ok, pfd::icon::info);
+    pfd::message::create("", "", pfd::choice::ok, pfd::icon::warning);
+    pfd::message::create("", "", pfd::choice::ok, pfd::icon::error);
+    pfd::message::create("", "", pfd::choice::ok, pfd::icon::question);
 
-    pfd::message b("", "");
-    (void)b.ready();
-    (void)b.ready(42);
-    (void)b.result();
+    auto b = pfd::message::create("", "");
+    (void)b->ready();
+    (void)b->ready(42);
+    (void)b->result();
 }
-

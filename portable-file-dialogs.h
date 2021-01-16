@@ -250,6 +250,9 @@ public:
     bool kill() const;
 
 protected:
+    // Token to allow private constructor access
+    enum this_constructor_is_private { token };
+
     explicit dialog();
 
     std::vector<std::string> desktop_helper() const;
@@ -304,9 +307,26 @@ protected:
 class notify : public internal::dialog
 {
 public:
+    static std::shared_ptr<notify>
+    create(std::string const &title,
+           std::string const &message,
+           icon _icon = icon::info);
+
+#if defined(__has_cpp_attribute)
+#if __has_cpp_attribute(deprecated)
+    // Backwards compatibility
+    [[deprecated("Use pfd::notify::create() instead of pfd::notify()")]]
+#endif
+#endif
     notify(std::string const &title,
            std::string const &message,
            icon _icon = icon::info);
+
+private:
+    notify(this_constructor_is_private,
+           std::string const& title,
+           std::string const& message,
+           icon _icon);
 };
 
 //
@@ -316,6 +336,18 @@ public:
 class message : public internal::dialog
 {
 public:
+    static std::shared_ptr<message>
+    create(std::string const &title,
+           std::string const &text,
+           choice _choice = choice::ok_cancel,
+           icon _icon = icon::info);
+
+#if defined(__has_cpp_attribute)
+#if __has_cpp_attribute(deprecated)
+    // Backwards compatibility
+    [[deprecated("Use pfd::message::create() instead of pfd::message()")]]
+#endif
+#endif
     message(std::string const &title,
             std::string const &text,
             choice _choice = choice::ok_cancel,
@@ -324,6 +356,12 @@ public:
     button result();
 
 private:
+    message(this_constructor_is_private,
+            std::string const &title,
+            std::string const &text,
+            choice _choice,
+            icon _icon);
+
     // Some extra logic to map the exit code to button number
     std::map<int, button> m_mappings;
 };
@@ -335,6 +373,18 @@ private:
 class open_file : public internal::file_dialog
 {
 public:
+    static std::shared_ptr<open_file>
+    create(std::string const &title,
+           std::string const &default_path = "",
+           std::vector<std::string> const &filters = { "All Files", "*" },
+           opt options = opt::none);
+
+#if defined(__has_cpp_attribute)
+#if __has_cpp_attribute(deprecated)
+    // Backwards compatibility
+    [[deprecated("Use pfd::open_file::create() instead of pfd::open_file()")]]
+#endif
+#endif
     open_file(std::string const &title,
               std::string const &default_path = "",
               std::vector<std::string> const &filters = { "All Files", "*" },
@@ -352,11 +402,30 @@ public:
               bool allow_multiselect);
 
     std::vector<std::string> result();
+
+private:
+    open_file(this_constructor_is_private,
+              std::string const &title,
+              std::string const &default_path,
+              std::vector<std::string> const &filters,
+              opt options);
 };
 
 class save_file : public internal::file_dialog
 {
 public:
+    static std::shared_ptr<save_file>
+    create(std::string const &title,
+           std::string const &default_path = "",
+           std::vector<std::string> const &filters = { "All Files", "*" },
+           opt options = opt::none);
+
+#if defined(__has_cpp_attribute)
+#if __has_cpp_attribute(deprecated)
+    // Backwards compatibility
+    [[deprecated("Use pfd::save_file::create() instead of pfd::save_file()")]]
+#endif
+#endif
     save_file(std::string const &title,
               std::string const &default_path = "",
               std::vector<std::string> const &filters = { "All Files", "*" },
@@ -374,16 +443,40 @@ public:
               bool confirm_overwrite);
 
     std::string result();
+
+private:
+    save_file(this_constructor_is_private,
+              std::string const &title,
+              std::string const &default_path,
+              std::vector<std::string> const &filters,
+              opt options);
 };
 
 class select_folder : public internal::file_dialog
 {
 public:
+    static std::shared_ptr<select_folder>
+    create(std::string const &title,
+           std::string const &default_path = "",
+           opt options = opt::none);
+
+#if defined(__has_cpp_attribute)
+#if __has_cpp_attribute(deprecated)
+    // Backwards compatibility
+    [[deprecated("Use pfd::select_folder::create() instead of pfd::select_folder()")]]
+#endif
+#endif
     select_folder(std::string const &title,
                   std::string const &default_path = "",
                   opt options = opt::none);
 
     std::string result();
+
+private:
+    select_folder(this_constructor_is_private,
+                  std::string const &title,
+                  std::string const &default_path,
+                  opt options);
 };
 
 //
@@ -1306,9 +1399,26 @@ inline std::string internal::file_dialog::select_folder_vista(IFileDialog *ifd, 
 
 // notify implementation
 
+inline std::shared_ptr<notify>
+notify::create(std::string const &title,
+               std::string const &message,
+               icon _icon /* = icon::info */)
+{
+    return std::shared_ptr<notify>(new notify(token, title, message, _icon));
+}
+
+// Backwards compatibility
 inline notify::notify(std::string const &title,
                       std::string const &message,
                       icon _icon /* = icon::info */)
+  : notify(token, title, message, _icon)
+{
+}
+
+inline notify::notify(this_constructor_is_private,
+                      std::string const &title,
+                      std::string const &message,
+                      icon _icon)
 {
     if (_icon == icon::question) // Not supported by notifications
         _icon = icon::info;
@@ -1411,10 +1521,29 @@ inline notify::notify(std::string const &title,
 
 // message implementation
 
+inline std::shared_ptr<message>
+message::create(std::string const &title,
+                std::string const &text,
+                choice _choice /* = choice::ok_cancel */,
+                icon _icon /* = icon::info */)
+{
+    return std::shared_ptr<message>(new message(token, title, text, _choice, _icon));
+}
+
+// Backwards compatibility
 inline message::message(std::string const &title,
                         std::string const &text,
                         choice _choice /* = choice::ok_cancel */,
                         icon _icon /* = icon::info */)
+  : message(token, title, text, _choice, _icon)
+{
+}
+
+inline message::message(this_constructor_is_private,
+                        std::string const &title,
+                        std::string const &text,
+                        choice _choice,
+                        icon _icon)
 {
 #if _WIN32
     UINT style = MB_TOPMOST;
@@ -1638,20 +1767,40 @@ inline button message::result()
 
 // open_file implementation
 
+inline std::shared_ptr<open_file>
+open_file::create(std::string const &title,
+                  std::string const &default_path /* = "" */,
+                  std::vector<std::string> const &filters /* = { "All Files", "*" } */,
+                  opt options /* = opt::none */)
+{
+    return std::shared_ptr<open_file>(new open_file(token, title, default_path, filters, options));
+}
+
+// Backwards compatibility
 inline open_file::open_file(std::string const &title,
                             std::string const &default_path /* = "" */,
                             std::vector<std::string> const &filters /* = { "All Files", "*" } */,
                             opt options /* = opt::none */)
-  : file_dialog(type::open, title, default_path, filters, options)
+  : open_file(token, title, default_path, filters, options)
 {
 }
 
+// Backwards compatibility
 inline open_file::open_file(std::string const &title,
                             std::string const &default_path,
                             std::vector<std::string> const &filters,
                             bool allow_multiselect)
-  : open_file(title, default_path, filters,
+  : open_file(token, title, default_path, filters,
               (allow_multiselect ? opt::multiselect : opt::none))
+{
+}
+
+inline open_file::open_file(this_constructor_is_private,
+                            std::string const &title,
+                            std::string const &default_path,
+                            std::vector<std::string> const &filters,
+                            opt options)
+  : file_dialog(type::open, title, default_path, filters, options)
 {
 }
 
@@ -1662,20 +1811,40 @@ inline std::vector<std::string> open_file::result()
 
 // save_file implementation
 
+inline std::shared_ptr<save_file>
+save_file::create(std::string const &title,
+                  std::string const &default_path /* = "" */,
+                  std::vector<std::string> const &filters /* = { "All Files", "*" } */,
+                  opt options /* = opt::none */)
+{
+    return std::shared_ptr<save_file>(new save_file(token, title, default_path, filters, options));
+}
+
+// Backwards compatibility
 inline save_file::save_file(std::string const &title,
                             std::string const &default_path /* = "" */,
                             std::vector<std::string> const &filters /* = { "All Files", "*" } */,
                             opt options /* = opt::none */)
-  : file_dialog(type::save, title, default_path, filters, options)
+  : save_file(token, title, default_path, filters, options)
 {
 }
 
+// Backwards compatibility
 inline save_file::save_file(std::string const &title,
                             std::string const &default_path,
                             std::vector<std::string> const &filters,
                             bool confirm_overwrite)
-  : save_file(title, default_path, filters,
+  : save_file(token, title, default_path, filters,
               (confirm_overwrite ? opt::none : opt::force_overwrite))
+{
+}
+
+inline save_file::save_file(this_constructor_is_private,
+                            std::string const &title,
+                            std::string const &default_path,
+                            std::vector<std::string> const &filters,
+                            opt options)
+  : file_dialog(type::save, title, default_path, filters, options)
 {
 }
 
@@ -1686,9 +1855,26 @@ inline std::string save_file::result()
 
 // select_folder implementation
 
+inline std::shared_ptr<select_folder>
+select_folder::create(std::string const &title,
+                      std::string const &default_path /* = "" */,
+                      opt options /* = opt::none */)
+{
+    return std::shared_ptr<select_folder>(new select_folder(token, title, default_path, options));
+}
+
+// Backwards compatibility
 inline select_folder::select_folder(std::string const &title,
                                     std::string const &default_path /* = "" */,
                                     opt options /* = opt::none */)
+  : file_dialog(type::folder, title, default_path, {}, options)
+{
+}
+
+inline select_folder::select_folder(this_constructor_is_private,
+                                    std::string const &title,
+                                    std::string const &default_path,
+                                    opt options)
   : file_dialog(type::folder, title, default_path, {}, options)
 {
 }
