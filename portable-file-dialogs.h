@@ -1444,7 +1444,7 @@ inline message::message(std::string const &title,
     m_mappings[IDRETRY] = button::retry;
     m_mappings[IDIGNORE] = button::ignore;
 
-    m_async->start_func([this, text, title, style](int* exit_code) -> std::string
+    m_async->start_func([text, title, style](int* exit_code) -> std::string
     {
         auto wtext = internal::str2wstr(text);
         auto wtitle = internal::str2wstr(title);
