@@ -1417,7 +1417,9 @@ inline message::message(std::string const &title,
                         icon _icon /* = icon::info */)
 {
 #if _WIN32
-    UINT style = MB_TOPMOST;
+    // Use MB_SYSTEMMODAL rather than MB_TOPMOST to ensure the message window is brought
+    // to front. See https://github.com/samhocevar/portable-file-dialogs/issues/52
+    UINT style = MB_SYSTEMMODAL;
     switch (_icon)
     {
         case icon::warning: style |= MB_ICONWARNING; break;
