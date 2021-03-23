@@ -31,6 +31,9 @@
 #ifndef _POSIX_C_SOURCE
 #   define _POSIX_C_SOURCE 2 // for popen()
 #endif
+#ifdef __APPLE__
+#   define _DARWIN_C_SOURCE
+#endif
 #include <cstdio>     // popen()
 #include <cstdlib>    // std::getenv()
 #include <fcntl.h>    // fcntl()
