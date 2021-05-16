@@ -32,7 +32,9 @@
 #   define _POSIX_C_SOURCE 2 // for popen()
 #endif
 #ifdef __APPLE__
-#   define _DARWIN_C_SOURCE
+#   ifndef _DARWIN_C_SOURCE
+#       define _DARWIN_C_SOURCE
+#   endif
 #endif
 #include <cstdio>     // popen()
 #include <cstdlib>    // std::getenv()
