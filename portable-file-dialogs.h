@@ -53,6 +53,17 @@
 #include <thread>   // std::mutex, std::this_thread
 #include <chrono>   // std::chrono
 
+// Versions of mingw64 g++ up to 9.3.0 do not have a complete IFileDialog
+#ifndef PFD_HAS_IFILEDIALOG
+#   define PFD_HAS_IFILEDIALOG 1
+#   if (defined __MINGW64__ || defined __MINGW32__) && defined __GXX_ABI_VERSION
+#       if __GXX_ABI_VERSION <= 1013
+#           undef PFD_HAS_IFILEDIALOG
+#           define PFD_HAS_IFILEDIALOG 0
+#       endif
+#   endif
+#endif
+
 namespace pfd
 {
 
@@ -291,7 +302,9 @@ protected:
 
 #if _WIN32
     static int CALLBACK bffcallback(HWND hwnd, UINT uMsg, LPARAM, LPARAM pData);
+#if PFD_HAS_IFILEDIALOG
     std::string select_folder_vista(IFileDialog *ifd, bool force_path);
+#endif
 
     std::wstring m_wtitle;
     std::wstring m_wdefault_path;
@@ -962,6 +975,7 @@ inline internal::file_dialog::file_dialog(type in_type,
         // Folder selection uses a different method
         if (in_type == type::folder)
         {
+#if PFD_HAS_IFILEDIALOG
             if (flags(flag::is_vista))
             {
                 // On Vista and higher we should be able to use IFileDialog for folder selection
@@ -973,6 +987,7 @@ inline internal::file_dialog::file_dialog(type in_type,
                 if (SUCCEEDED(hr))
                     return select_folder_vista(ifd, options & opt::force_path);
             }
+#endif
 
             BROWSEINFOW bi;
             memset(&bi, 0, sizeof(bi));
@@ -1247,6 +1262,7 @@ inline int CALLBACK internal::file_dialog::bffcallback(HWND hwnd, UINT uMsg,
     return 0;
 }
 
+#if PFD_HAS_IFILEDIALOG
 inline std::string internal::file_dialog::select_folder_vista(IFileDialog *ifd, bool force_path)
 {
     std::string result;
@@ -1307,6 +1323,7 @@ inline std::string internal::file_dialog::select_folder_vista(IFileDialog *ifd, 
 
     return result;
 }
+#endif
 #endif
 
 // notify implementation
