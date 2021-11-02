@@ -12,7 +12,7 @@ Just include the main header file wherever needed:
 
 /* ... */
 
-    pfd::message::message("Hello", "This is a test");
+    pfd::message("Hello", "This is a test");
 
 /* ... */
 ```
@@ -41,7 +41,7 @@ destructor will block until the window is closed by user interaction. So for ins
 will block until the end of the line:
 
 ```cpp
-pfd::message::message("Hi", "there");
+pfd::message("Hi", "there");
 ```
 
 Whereas this will only block until the end of the scope, allowing the program to perform
@@ -49,7 +49,7 @@ additional operations while the dialog is open:
 
 ```cpp
 {
-    auto m = pfd::message::message("Hi", "there");
+    auto m = pfd::message("Hi", "there");
 
     // ... perform asynchronous operations here
 }
@@ -60,7 +60,7 @@ status and perform asynchronous operations as long as the user has not interacte
 
 ```cpp
 {
-    auto m = pfd::message::message("Hi", "there");
+    auto m = pfd::message("Hi", "there");
 
     while (!m.ready())
     {
@@ -75,7 +75,7 @@ possible to close a Windows message box that provides no _Cancel_ button.
 
 ```cpp
 {
-    auto m = pfd::message::message("Hi", "there");
+    auto m = pfd::message("Hi", "there");
 
     while (!m.ready())
     {
