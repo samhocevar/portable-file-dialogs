@@ -1,7 +1,7 @@
 //
 //  Portable File Dialogs
 //
-//  Copyright © 2018—2020 Sam Hocevar <sam@hocevar.net>
+//  Copyright © 2018–2022 Sam Hocevar <sam@hocevar.net>
 //
 //  This library is free software. It comes without any warranty, to
 //  the extent permitted by applicable law. You can redistribute it
@@ -598,7 +598,11 @@ inline bool internal::executor::kill()
         EnumWindows(&enum_windows_callback, (LPARAM)this);
         for (auto hwnd : m_windows)
             if (previous_windows.find(hwnd) == previous_windows.end())
+            {
                 SendMessage(hwnd, WM_CLOSE, 0, 0);
+                // Also send IDNO in case of a Yes/No or Abort/Retry/Ignore messagebox
+                SendMessage(hwnd, WM_COMMAND, IDNO, 0);
+            }
     }
 #elif __EMSCRIPTEN__ || __NX__
     // FIXME: do something
