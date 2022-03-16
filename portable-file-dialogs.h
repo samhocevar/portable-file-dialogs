@@ -506,6 +506,9 @@ inline bool settings::available()
     return true;
 #elif __APPLE__
     return true;
+#elif __EMSCRIPTEN__
+    // FIXME: Return true after implementation is complete.
+    return false;
 #else
     settings tmp;
     return tmp.flags(flag::has_zenity) ||
@@ -599,7 +602,6 @@ inline bool internal::executor::kill()
     }
 #elif __EMSCRIPTEN__ || __NX__
     // FIXME: do something
-    (void)timeout;
     return false; // cannot kill
 #else
     ::kill(m_pid, SIGKILL);
@@ -1091,6 +1093,13 @@ inline internal::file_dialog::file_dialog(type in_type,
 
         return "";
     });
+#elif __EMSCRIPTEN__
+    // FIXME: do something
+    (void)in_type;
+    (void)title;
+    (void)default_path;
+    (void)filters;
+    (void)options;
 #else
     auto command = desktop_helper();
 
@@ -1399,6 +1408,10 @@ inline notify::notify(std::string const &title,
 
     // Display the new icon
     Shell_NotifyIconW(NIM_ADD, nid.get());
+#elif __EMSCRIPTEN__
+    // FIXME: do something
+    (void)title;
+    (void)message;
 #else
     auto command = desktop_helper();
 
