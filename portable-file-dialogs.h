@@ -1608,6 +1608,7 @@ inline message::message(std::string const &title,
 
         command.insert(command.end(), { "--title", title,
                                         "--width=300", "--height=0", // sensible defaults
+                                        "--no-markup", // do not interpret text as Pango markup
                                         "--text", text,
                                         "--icon-name=dialog-" + get_icon_name(_icon) });
     }
