@@ -1531,45 +1531,45 @@ inline message::message(std::string const &title,
     {
         std::string script = "display dialog " + osascript_quote(text) +
                              " with title " + osascript_quote(title);
+        auto if_cancel = button::cancel;
         switch (_choice)
         {
             case choice::ok_cancel:
                 script += "buttons {\"OK\", \"Cancel\"}"
                           " default button \"OK\""
                           " cancel button \"Cancel\"";
-                m_mappings[256] = button::cancel;
                 break;
             case choice::yes_no:
                 script += "buttons {\"Yes\", \"No\"}"
                           " default button \"Yes\""
                           " cancel button \"No\"";
-                m_mappings[256] = button::no;
+                if_cancel = button::no;
                 break;
             case choice::yes_no_cancel:
                 script += "buttons {\"Yes\", \"No\", \"Cancel\"}"
                           " default button \"Yes\""
                           " cancel button \"Cancel\"";
-                m_mappings[256] = button::cancel;
                 break;
             case choice::retry_cancel:
                 script += "buttons {\"Retry\", \"Cancel\"}"
                           " default button \"Retry\""
                           " cancel button \"Cancel\"";
-                m_mappings[256] = button::cancel;
                 break;
             case choice::abort_retry_ignore:
                 script += "buttons {\"Abort\", \"Retry\", \"Ignore\"}"
-                          " default button \"Retry\""
+                          " default button \"Abort\""
                           " cancel button \"Retry\"";
-                m_mappings[256] = button::cancel;
+                if_cancel = button::retry;
                 break;
             case choice::ok: default:
                 script += "buttons {\"OK\"}"
                           " default button \"OK\""
                           " cancel button \"OK\"";
-                m_mappings[256] = button::ok;
+                if_cancel = button::ok;
                 break;
         }
+        m_mappings[1] = if_cancel;
+        m_mappings[256] = if_cancel; // XXX: I think this was never correct
         script += " with icon ";
         switch (_icon)
         {
@@ -1666,8 +1666,7 @@ inline button message::result()
     auto ret = m_async->result(&exit_code);
     // osascript will say "button returned:Cancel\n"
     // and others will just say "Cancel\n"
-    if (exit_code < 0 || // this means cancel
-        internal::ends_with(ret, "Cancel\n"))
+    if (internal::ends_with(ret, "Cancel\n"))
         return button::cancel;
     if (internal::ends_with(ret, "OK\n"))
         return button::ok;
