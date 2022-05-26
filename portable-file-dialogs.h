@@ -478,6 +478,11 @@ inline settings::settings(bool resync)
     if (flags(flag::is_scanned))
         return;
 
+    auto pfd_verbose = std::getenv("PFD_VERBOSE");
+    auto match_no = std::regex("(|0|no|false)", std::regex_constants::icase);
+    if (pfd_verbose && !std::regex_match(pfd_verbose, match_no))
+        flags(flag::is_verbose) = true;
+
 #if _WIN32
     flags(flag::is_vista) = internal::is_vista();
 #elif !__APPLE__
