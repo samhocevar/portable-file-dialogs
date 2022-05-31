@@ -1155,11 +1155,18 @@ inline internal::file_dialog::file_dialog(type in_type,
                 if (pat == "*" || pat == "*.*")
                     has_filter = false;
                 else if (internal::starts_with(pat, "*."))
-                    filter_list += (filter_list.size() == 0 ? "" : ",") +
-                                   osascript_quote(pat.substr(2, pat.size() - 2));
+                    filter_list += "," + osascript_quote(pat.substr(2, pat.size() - 2));
             }
+
             if (has_filter && filter_list.size() > 0)
-                script += " of type {" + filter_list + "}";
+            {
+                // There is a weird AppleScript bug where file extensions of length != 3 are
+                // ignored, e.g. type{"txt"} works, but type{"json"} does not. Fortunately if
+                // the whole list starts with a 3-character extension, everything works again.
+                // We use "///" for such an extension because we are sure it cannot appear in
+                // an actual filename.
+                script += " of type {\"///\"" + filter_list + "}";
+            }
         }
 
         if (in_type == type::open && (options & opt::multiselect))
