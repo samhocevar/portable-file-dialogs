@@ -41,6 +41,7 @@
 #include <fcntl.h>    // fcntl()
 #include <unistd.h>   // read(), pipe(), dup2()
 #include <csignal>    // ::kill, std::signal
+#include <sys/stat.h> // stat()
 #include <sys/wait.h> // waitpid()
 #endif
 
@@ -465,6 +466,22 @@ static inline bool starts_with(std::string const &str, std::string const &prefix
 {
     return prefix.size() <= str.size() &&
         str.compare(0, prefix.size(), prefix) == 0;
+}
+
+// This is necessary until C++17 which will have std::filesystem::is_directory
+
+static inline bool is_directory(std::string const &path)
+{
+#if _WIN32
+    auto attr = GetFileAttributesA(path.c_str());
+    return attr != INVALID_FILE_ATTRIBUTES && (attr & FILE_ATTRIBUTE_DIRECTORY);
+#elif __EMSCRIPTEN__
+    // TODO
+    return false;
+#else
+    struct stat s;
+    return stat(path.c_str(), &s) == 0 && S_ISDIR(s.st_mode);
+#endif
 }
 
 // This is necessary because getenv is not thread-safe
@@ -1208,7 +1225,14 @@ inline internal::file_dialog::file_dialog(type in_type,
     else if (is_zenity())
     {
         command.push_back("--file-selection");
-        command.push_back("--filename=" + default_path);
+
+        // If the default path is a directory, make sure it ends with "/" otherwise zenity will
+        // open the file dialog in the parent directory.
+        auto filename_arg = "--filename=" + default_path;
+        if (in_type != type::folder && !ends_with(default_path, "/") && internal::is_directory(default_path))
+            filename_arg += "/";
+        command.push_back(filename_arg);
+
         command.push_back("--title");
         command.push_back(title);
         command.push_back("--separator=\n");
