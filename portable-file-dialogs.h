@@ -1441,7 +1441,7 @@ inline std::string internal::file_dialog::select_folder_vista(IFileDialog *ifd, 
     }
 
     // Set the dialog title and option to select folders
-    ifd->SetOptions(FOS_PICKFOLDERS);
+    ifd->SetOptions(FOS_PICKFOLDERS | FOS_FORCEFILESYSTEM);
     ifd->SetTitle(m_wtitle.c_str());
 
     hr = ifd->Show(GetActiveWindow());
@@ -1451,15 +1451,27 @@ inline std::string internal::file_dialog::select_folder_vista(IFileDialog *ifd, 
         hr = ifd->GetResult(&item);
         if (SUCCEEDED(hr))
         {
-            wchar_t* wselected = nullptr;
-            item->GetDisplayName(SIGDN_FILESYSPATH, &wselected);
-            item->Release();
-
-            if (wselected)
+            wchar_t* wname = nullptr;
+            // This is unlikely to fail because we use FOS_FORCEFILESYSTEM, but try
+            // to output a debug message just in case.
+            if (SUCCEEDED(item->GetDisplayName(SIGDN_FILESYSPATH, &wname)))
             {
-                result = internal::wstr2str(std::wstring(wselected));
-                dll::proc<void WINAPI (LPVOID)>(ole32_dll(), "CoTaskMemFree")(wselected);
+                result = internal::wstr2str(std::wstring(wname));
+                dll::proc<void WINAPI (LPVOID)>(ole32_dll(), "CoTaskMemFree")(wname);
             }
+            else
+            {
+                if (SUCCEEDED(item->GetDisplayName(SIGDN_NORMALDISPLAY, &wname)))
+                {
+                    auto name = internal::wstr2str(std::wstring(wname));
+                    dll::proc<void WINAPI (LPVOID)>(ole32_dll(), "CoTaskMemFree")(wname);
+                    std::cerr << "pfd: failed to get path for " << name << std::endl;
+                }
+                else
+                    std::cerr << "pfd: item of unknown type selected" << std::endl;
+            }
+
+            item->Release();
         }
     }
 
