@@ -14,6 +14,12 @@
 
 #include <iostream>
 
+void test_notify();
+void test_message();
+void test_select_folder();
+void test_open_file();
+void test_save_file();
+
 int main()
 {
     // Check that a backend is available
@@ -26,11 +32,24 @@ int main()
     // Set verbosity to true
     pfd::settings::verbose(true);
 
+    test_notify();
+    test_message();
+    test_select_folder();
+    test_open_file();
+    test_save_file();
+}
+
+void test_notify()
+{
     // Notification
     pfd::notify("Important Notification",
                 "This is ' a message, pay \" attention \\ to it!",
                 pfd::icon::info);
 
+}
+
+void test_message()
+{
     // Message box with nice message
     auto m = pfd::message("Personal Message",
                           "You are an amazing person, don’t let anyone make you think otherwise.",
@@ -49,11 +68,17 @@ int main()
         case pfd::button::cancel: std::cout << "User freaked out.\n"; break;
         default: break; // Should not happen
     }
+}
 
+void test_select_folder()
+{
     // Directory selection
     auto dir = pfd::select_folder("Select any directory", pfd::path::home()).result();
     std::cout << "Selected dir: " << dir << "\n";
+}
 
+void test_open_file()
+{
     // File open
     auto f = pfd::open_file("Choose files to read", pfd::path::home(),
                             { "Text Files (.txt .text)", "*.txt *.text",
@@ -65,8 +90,17 @@ int main()
     std::cout << "\n";
 }
 
+void test_save_file()
+{
+    // File save
+    auto f = pfd::save_file("Choose file to save", pfd::path::home() + "/readme.txt",
+                            { "Text Files (.txt .text)", "*.txt *.text" },
+                            pfd::opt::force_overwrite);
+    std::cout << "Selected file: " << f.result() << "\n";
+}
+
 // Unused function that just tests the whole API
-void api()
+void test_api()
 {
     // pfd::settings
     pfd::settings::verbose(true);
