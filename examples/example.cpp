@@ -1,7 +1,7 @@
 //
 //  Portable File Dialogs
 //
-//  Copyright © 2018—2020 Sam Hocevar <sam@hocevar.net>
+//  Copyright © 2018–2022 Sam Hocevar <sam@hocevar.net>
 //
 //  This program is free software. It comes without any warranty, to
 //  the extent permitted by applicable law. You can redistribute it
@@ -13,12 +13,6 @@
 #include "portable-file-dialogs.h"
 
 #include <iostream>
-
-#if _WIN32
-#define DEFAULT_PATH "C:\\"
-#else
-#define DEFAULT_PATH "/tmp"
-#endif
 
 int main()
 {
@@ -57,11 +51,11 @@ int main()
     }
 
     // Directory selection
-    auto dir = pfd::select_folder("Select any directory", DEFAULT_PATH).result();
+    auto dir = pfd::select_folder("Select any directory", pfd::path::home()).result();
     std::cout << "Selected dir: " << dir << "\n";
 
     // File open
-    auto f = pfd::open_file("Choose files to read", DEFAULT_PATH,
+    auto f = pfd::open_file("Choose files to read", pfd::path::home(),
                             { "Text Files (.txt .text)", "*.txt *.text",
                               "All Files", "*" },
                             pfd::opt::multiselect);

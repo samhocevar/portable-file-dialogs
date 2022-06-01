@@ -23,6 +23,7 @@
 #include <shellapi.h>
 #include <strsafe.h>
 #include <future>     // std::async
+#include <userenv.h>  // GetUserProfileDirectory()
 
 #elif __EMSCRIPTEN__
 #include <emscripten.h>
@@ -39,10 +40,11 @@
 #include <cstdio>     // popen()
 #include <cstdlib>    // std::getenv()
 #include <fcntl.h>    // fcntl()
-#include <unistd.h>   // read(), pipe(), dup2()
+#include <unistd.h>   // read(), pipe(), dup2(), getuid()
 #include <csignal>    // ::kill, std::signal
 #include <sys/stat.h> // stat()
 #include <sys/wait.h> // waitpid()
+#include <pwd.h>      // getpwnam()
 #endif
 
 #include <string>   // std::string
@@ -315,6 +317,16 @@ protected:
 };
 
 } // namespace internal
+
+//
+// The path class provides some platform-specific path constants
+//
+
+class path : protected internal::platform
+{
+public:
+    static std::string home();
+};
 
 //
 // The notify widget
@@ -618,6 +630,49 @@ inline bool const &settings::flags(flag in_flag) const
 inline bool &settings::flags(flag in_flag)
 {
     return const_cast<bool &>(static_cast<settings const *>(this)->flags(in_flag));
+}
+
+// path implementation
+inline std::string path::home()
+{
+#if _WIN32
+    // First try the USERPROFILE environment variable
+    auto user_profile = internal::getenv("USERPROFILE");
+    if (user_profile.size() > 0)
+        return user_profile;
+    // Otherwise, try GetUserProfileDirectory()
+    HANDLE token = nullptr;
+    DWORD len = MAX_PATH;
+    char buf[MAX_PATH] = { '\0' };
+    if (OpenProcessToken(GetCurrentProcess(), TOKEN_QUERY, &token))
+    {
+        dll userenv("userenv.dll");
+        dll::proc<BOOL WINAPI (HANDLE, LPSTR, LPDWORD)> get_user_profile_directory(userenv, "GetUserProfileDirectoryA");
+        get_user_profile_directory(token, buf, &len);
+        CloseHandle(token);
+        if (*buf)
+            return buf;
+    }
+#elif __EMSCRIPTEN__
+    return "/";
+#else
+    // First try the HOME environment variable
+    auto home = internal::getenv("HOME");
+    if (home.size() > 0)
+        return home;
+    // Otherwise, try getpwuid_r()
+    size_t len = 4096;
+#if defined(_SC_GETPW_R_SIZE_MAX)
+    auto size_max = sysconf(_SC_GETPW_R_SIZE_MAX);
+    if (size_max != -1)
+        len = size_t(size_max);
+#endif
+    std::vector<char> buf(len);
+    struct passwd pwd, *result;
+    if (getpwuid_r(getuid(), &pwd, buf.data(), buf.size(), &result) == 0)
+        return result->pw_dir;
+#endif
+    return "/";
 }
 
 // executor implementation
