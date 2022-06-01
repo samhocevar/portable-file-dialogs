@@ -222,7 +222,7 @@ protected:
         {
         public:
             proc(dll const &lib, std::string const &sym)
-              : m_proc(reinterpret_cast<T *>(::GetProcAddress(lib.handle, sym.c_str())))
+              : m_proc(reinterpret_cast<T *>((void *)::GetProcAddress(lib.handle, sym.c_str())))
             {}
 
             operator bool() const { return m_proc != nullptr; }
@@ -953,7 +953,7 @@ inline HANDLE internal::platform::new_style_context::create()
         // crash with error “default context is already set”.
         sizeof(act_ctx),
         ACTCTX_FLAG_RESOURCE_NAME_VALID | ACTCTX_FLAG_ASSEMBLY_DIRECTORY_VALID,
-        "shell32.dll", 0, 0, sys_dir.c_str(), (LPCSTR)124,
+        "shell32.dll", 0, 0, sys_dir.c_str(), (LPCSTR)124, nullptr, 0,
     };
 
     return ::CreateActCtxA(&act_ctx);
@@ -1020,7 +1020,7 @@ inline std::string internal::dialog::get_icon_name(icon _icon)
     }
 }
 
-// THis is only used for debugging purposes
+// This is only used for debugging purposes
 inline std::ostream& operator <<(std::ostream &s, std::vector<std::string> const &v)
 {
     int not_first = 0;
