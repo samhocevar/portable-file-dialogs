@@ -326,6 +326,7 @@ class path : protected internal::platform
 {
 public:
     static std::string home();
+    static std::string separator();
 };
 
 //
@@ -673,6 +674,15 @@ inline std::string path::home()
         return result->pw_dir;
 #endif
     return "/";
+}
+
+inline std::string path::separator()
+{
+#if _WIN32
+    return "\\";
+#else
+    return "/";
+#endif
 }
 
 // executor implementation

@@ -93,7 +93,8 @@ void test_open_file()
 void test_save_file()
 {
     // File save
-    auto f = pfd::save_file("Choose file to save", pfd::path::home() + "/readme.txt",
+    auto f = pfd::save_file("Choose file to save",
+                            pfd::path::home() + pfd::path::separator() + "readme.txt",
                             { "Text Files (.txt .text)", "*.txt *.text" },
                             pfd::opt::force_overwrite);
     std::cout << "Selected file: " << f.result() << "\n";
