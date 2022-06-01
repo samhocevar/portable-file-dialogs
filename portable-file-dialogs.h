@@ -1235,9 +1235,10 @@ inline internal::file_dialog::file_dialog(type in_type,
         if (default_path.size())
         {
             if (in_type == type::folder || is_directory(default_path))
-                script += " default location " + osascript_quote(default_path);
+                script += " default location ";
             else
-                script += " default name " + osascript_quote(default_path);
+                script += " default name ";
+            script += osascript_quote(default_path);
         }
 
         script += " with prompt " + osascript_quote(title);
