@@ -467,6 +467,26 @@ static inline bool starts_with(std::string const &str, std::string const &prefix
         str.compare(0, prefix.size(), prefix) == 0;
 }
 
+// This is necessary because getenv is not thread-safe
+
+static inline std::string getenv(std::string const &str)
+{
+#if _WIN32
+    char *buf = nullptr;
+    size_t size = 0;
+    if (_dupenv_s(&buf, &size, str.c_str()) == 0 && buf)
+    {
+        std::string ret(buf);
+        free(buf);
+        return ret;
+    }
+    return "";
+#else
+    auto buf = std::getenv(str.c_str());
+    return buf ? buf : "";
+#endif
+}
+
 } // namespace internal
 
 // settings implementation
@@ -478,9 +498,9 @@ inline settings::settings(bool resync)
     if (flags(flag::is_scanned))
         return;
 
-    auto pfd_verbose = std::getenv("PFD_VERBOSE");
+    auto pfd_verbose = internal::getenv("PFD_VERBOSE");
     auto match_no = std::regex("(|0|no|false)", std::regex_constants::icase);
-    if (pfd_verbose && !std::regex_match(pfd_verbose, match_no))
+    if (!std::regex_match(pfd_verbose, match_no))
         flags(flag::is_verbose) = true;
 
 #if _WIN32
@@ -494,10 +514,10 @@ inline settings::settings(bool resync)
     // If multiple helpers are available, try to default to the best one
     if (flags(flag::has_zenity) && flags(flag::has_kdialog))
     {
-        auto desktop_name = std::getenv("XDG_SESSION_DESKTOP");
-        if (desktop_name && desktop_name == std::string("gnome"))
+        auto desktop_name = internal::getenv("XDG_SESSION_DESKTOP");
+        if (desktop_name == std::string("gnome"))
             flags(flag::has_kdialog) = false;
-        else if (desktop_name && desktop_name == std::string("KDE"))
+        else if (desktop_name == std::string("KDE"))
             flags(flag::has_zenity) = false;
     }
 #endif
