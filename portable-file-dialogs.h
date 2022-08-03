@@ -267,6 +267,7 @@ class dialog : protected settings, protected platform
 public:
     bool ready(int timeout = default_wait_timeout) const;
     bool kill() const;
+    virtual ~dialog() = default;
 
 protected:
     explicit dialog();
