@@ -1,7 +1,7 @@
 //
 //  Portable File Dialogs
 //
-//  Copyright © 2018—2020 Sam Hocevar <sam@hocevar.net>
+//  Copyright © 2018–2022 Sam Hocevar <sam@hocevar.net>
 //
 //  This program is free software. It comes without any warranty, to
 //  the extent permitted by applicable law. You can redistribute it
@@ -14,11 +14,11 @@
 
 #include <iostream>
 
-#if _WIN32
-#define DEFAULT_PATH "C:\\"
-#else
-#define DEFAULT_PATH "/tmp"
-#endif
+void test_notify();
+void test_message();
+void test_select_folder();
+void test_open_file();
+void test_save_file();
 
 int main()
 {
@@ -29,11 +29,26 @@ int main()
         return 1;
     }
 
+    // Set verbosity to true
+    pfd::settings::verbose(true);
+
+    test_notify();
+    test_message();
+    test_select_folder();
+    test_open_file();
+    test_save_file();
+}
+
+void test_notify()
+{
     // Notification
     pfd::notify::create("Important Notification",
                         "This is ' a message, pay \" attention \\ to it!",
                         pfd::icon::info);
+}
 
+void test_message()
+{
     // Message box with nice message
     auto m = pfd::message::create("Personal Message",
                                   "You are an amazing person, don’t let anyone make you think otherwise.",
@@ -52,13 +67,19 @@ int main()
         case pfd::button::cancel: std::cout << "User freaked out.\n"; break;
         default: break; // Should not happen
     }
+}
 
+void test_select_folder()
+{
     // Directory selection
-    auto dir = pfd::select_folder::create("Select any directory", DEFAULT_PATH)->result();
+    auto dir = pfd::select_folder::create("Select any directory", pfd::path::home())->result();
     std::cout << "Selected dir: " << dir << "\n";
+}
 
+void test_open_file()
+{
     // File open
-    auto f = pfd::open_file::create("Choose files to read", DEFAULT_PATH,
+    auto f = pfd::open_file::create("Choose files to read", pfd::path::home(),
                                     { "Text Files (.txt .text)", "*.txt *.text",
                                       "All Files", "*" },
                                     pfd::opt::multiselect);
@@ -68,8 +89,18 @@ int main()
     std::cout << "\n";
 }
 
+void test_save_file()
+{
+    // File save
+    auto f = pfd::save_file("Choose file to save",
+                            pfd::path::home() + pfd::path::separator() + "readme.txt",
+                            { "Text Files (.txt .text)", "*.txt *.text" },
+                            pfd::opt::force_overwrite);
+    std::cout << "Selected file: " << f.result() << "\n";
+}
+
 // Unused function that just tests the whole API
-void api()
+void test_api()
 {
     // pfd::settings
     pfd::settings::verbose(true);
