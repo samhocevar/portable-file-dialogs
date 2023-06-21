@@ -1348,6 +1348,11 @@ inline internal::file_dialog::file_dialog(type in_type,
         command.push_back("--title");
         command.push_back(title);
     }
+    else
+    {
+        std::cerr << "Invalid file dialog. Could not detect.\n";
+        return;
+    }
 
     if (flags(flag::is_verbose))
         std::cerr << "pfd: " << command << std::endl;
