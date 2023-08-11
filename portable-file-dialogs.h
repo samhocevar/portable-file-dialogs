@@ -306,7 +306,7 @@ protected:
 #if _WIN32
     static int CALLBACK bffcallback(HWND hwnd, UINT uMsg, LPARAM, LPARAM pData);
 #if PFD_HAS_IFILEDIALOG
-    std::string select_folder_vista(IFileDialog *ifd, bool force_path);
+    std::string select_folder_vista(IFileDialog *ifd, bool force_path, HWND hwnd);
 #endif
 
     std::wstring m_wtitle;
@@ -1099,7 +1099,7 @@ inline internal::file_dialog::file_dialog(type in_type,
 
                 // In case CoCreateInstance fails (which it should not), try legacy approach
                 if (SUCCEEDED(hr))
-                    return select_folder_vista(ifd, options & opt::force_path);
+                    return select_folder_vista(ifd, options & opt::force_path, hwnd);
             }
 #endif
 
@@ -1408,7 +1408,7 @@ inline int CALLBACK internal::file_dialog::bffcallback(HWND hwnd, UINT uMsg,
 }
 
 #if PFD_HAS_IFILEDIALOG
-inline std::string internal::file_dialog::select_folder_vista(IFileDialog *ifd, bool force_path)
+inline std::string internal::file_dialog::select_folder_vista(IFileDialog *ifd, bool force_path, HWND hwnd)
 {
     std::string result;
 
@@ -1445,7 +1445,7 @@ inline std::string internal::file_dialog::select_folder_vista(IFileDialog *ifd, 
     ifd->SetOptions(FOS_PICKFOLDERS | FOS_FORCEFILESYSTEM);
     ifd->SetTitle(m_wtitle.c_str());
 
-    hr = ifd->Show(GetActiveWindow());
+    hr = ifd->Show(hwnd);
     if (SUCCEEDED(hr))
     {
         IShellItem* item;
