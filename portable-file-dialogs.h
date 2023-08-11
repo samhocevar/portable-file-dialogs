@@ -1071,8 +1071,9 @@ inline internal::file_dialog::file_dialog(type in_type,
     }
     filter_list += '\0';
 
+    HWND hwnd = GetActiveWindow();
     m_async->start_func([this, in_type, title, default_path, filter_list,
-                         options](int *exit_code) -> std::string
+                         options, hwnd](int *exit_code) -> std::string
     {
         (void)exit_code;
         m_wtitle = internal::str2wstr(title);
@@ -1132,7 +1133,7 @@ inline internal::file_dialog::file_dialog(type in_type,
         OPENFILENAMEW ofn;
         memset(&ofn, 0, sizeof(ofn));
         ofn.lStructSize = sizeof(OPENFILENAMEW);
-        ofn.hwndOwner = GetActiveWindow();
+        ofn.hwndOwner = hwnd;
 
         ofn.lpstrFilter = wfilter_list.c_str();
 
@@ -1628,13 +1629,14 @@ inline message::message(std::string const &title,
     m_mappings[IDRETRY] = button::retry;
     m_mappings[IDIGNORE] = button::ignore;
 
-    m_async->start_func([text, title, style](int* exit_code) -> std::string
+    HWND hwnd = GetActiveWindow();
+    m_async->start_func([text, title, style, hwnd](int* exit_code) -> std::string
     {
         auto wtext = internal::str2wstr(text);
         auto wtitle = internal::str2wstr(title);
         // Apply new visual style (required for all Windows versions)
         new_style_context ctx;
-        *exit_code = MessageBoxW(GetActiveWindow(), wtext.c_str(), wtitle.c_str(), style);
+        *exit_code = MessageBoxW(hwnd, wtext.c_str(), wtitle.c_str(), style);
         return "";
     });
 
