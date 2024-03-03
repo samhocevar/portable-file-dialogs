@@ -12,7 +12,7 @@
 
 #pragma once
 
-#ifdef PFD_STATIC_BUILD or defined(PFD_STATIC)
+#if defined(PFD_STATIC_BUILD) || defined(PFD_STATIC)
 #   define PFD_INLINE
 #else
 #   define PFD_INLINE inline
