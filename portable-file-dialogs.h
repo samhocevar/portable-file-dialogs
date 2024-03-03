@@ -12,6 +12,22 @@
 
 #pragma once
 
+#ifdef PFD_STATIC_BUILD or defined(PFD_STATIC)
+#   define PFD_INLINE
+#else
+#   define PFD_INLINE inline
+#endif
+
+#ifdef PFD_STATIC
+#define PFD_SKIP_IMPLEMENTATION
+#endif
+
+#if _WIN32
+#include <shobjidl.h> // IFileDialog
+#include <future>     // std::async
+#endif
+
+#ifndef PFD_SKIP_IMPLEMENTATION
 #if _WIN32
 #ifndef WIN32_LEAN_AND_MEAN
 #   define WIN32_LEAN_AND_MEAN 1
@@ -22,7 +38,6 @@
 #include <shobjidl.h> // IFileDialog
 #include <shellapi.h>
 #include <strsafe.h>
-#include <future>     // std::async
 #include <userenv.h>  // GetUserProfileDirectory()
 
 #elif __EMSCRIPTEN__
@@ -45,6 +60,7 @@
 #include <sys/stat.h> // stat()
 #include <sys/wait.h> // waitpid()
 #include <pwd.h>      // getpwnam()
+#endif
 #endif
 
 #include <string>   // std::string
@@ -113,8 +129,8 @@ enum class opt : uint8_t
     force_path      = 0x4,
 };
 
-inline opt operator |(opt a, opt b) { return opt(uint8_t(a) | uint8_t(b)); }
-inline bool operator &(opt a, opt b) { return bool(uint8_t(a) & uint8_t(b)); }
+static opt operator |(opt a, opt b) { return opt(uint8_t(a) | uint8_t(b)); }
+static bool operator &(opt a, opt b) { return bool(uint8_t(a) & uint8_t(b)); }
 
 // The settings class, only exposing to the user a way to set verbose mode
 // and to force a rescan of installed desktop helpers (zenity, kdialog…).
@@ -131,9 +147,9 @@ protected:
 
     bool check_program(std::string const &program);
 
-    inline bool is_osascript() const;
-    inline bool is_zenity() const;
-    inline bool is_kdialog() const;
+    PFD_INLINE bool is_osascript() const;
+    PFD_INLINE bool is_zenity() const;
+    PFD_INLINE bool is_kdialog() const;
 
     enum class flag
     {
@@ -432,7 +448,7 @@ namespace internal
 {
 
 #if _WIN32
-static inline std::wstring str2wstr(std::string const &str)
+static PFD_INLINE std::wstring str2wstr(std::string const &str)
 {
     int len = MultiByteToWideChar(CP_UTF8, 0, str.c_str(), (int)str.size(), nullptr, 0);
     std::wstring ret(len, '\0');
@@ -440,7 +456,7 @@ static inline std::wstring str2wstr(std::string const &str)
     return ret;
 }
 
-static inline std::string wstr2str(std::wstring const &str)
+static PFD_INLINE std::string wstr2str(std::wstring const &str)
 {
     int len = WideCharToMultiByte(CP_UTF8, 0, str.c_str(), (int)str.size(), nullptr, 0, nullptr, nullptr);
     std::string ret(len, '\0');
@@ -448,7 +464,7 @@ static inline std::string wstr2str(std::wstring const &str)
     return ret;
 }
 
-static inline bool is_vista()
+static PFD_INLINE bool is_vista()
 {
     OSVERSIONINFOEXW osvi;
     memset(&osvi, 0, sizeof(osvi));
@@ -469,13 +485,13 @@ static inline bool is_vista()
 
 // This is necessary until C++20 which will have std::string::ends_with() etc.
 
-static inline bool ends_with(std::string const &str, std::string const &suffix)
+static PFD_INLINE bool ends_with(std::string const &str, std::string const &suffix)
 {
     return suffix.size() <= str.size() &&
         str.compare(str.size() - suffix.size(), suffix.size(), suffix) == 0;
 }
 
-static inline bool starts_with(std::string const &str, std::string const &prefix)
+static PFD_INLINE bool starts_with(std::string const &str, std::string const &prefix)
 {
     return prefix.size() <= str.size() &&
         str.compare(0, prefix.size(), prefix) == 0;
@@ -483,7 +499,7 @@ static inline bool starts_with(std::string const &str, std::string const &prefix
 
 // This is necessary until C++17 which will have std::filesystem::is_directory
 
-static inline bool is_directory(std::string const &path)
+static PFD_INLINE bool is_directory(std::string const &path)
 {
 #if _WIN32
     auto attr = GetFileAttributesA(path.c_str());
@@ -499,7 +515,7 @@ static inline bool is_directory(std::string const &path)
 
 // This is necessary because getenv is not thread-safe
 
-static inline std::string getenv(std::string const &str)
+static PFD_INLINE std::string getenv(std::string const &str)
 {
 #if _MSC_VER
     char *buf = nullptr;
@@ -521,7 +537,7 @@ static inline std::string getenv(std::string const &str)
 
 // settings implementation
 
-inline settings::settings(bool resync)
+PFD_INLINE settings::settings(bool resync)
 {
     flags(flag::is_scanned) &= !resync;
 
@@ -555,7 +571,7 @@ inline settings::settings(bool resync)
     flags(flag::is_scanned) = true;
 }
 
-inline bool settings::available()
+PFD_INLINE bool settings::available()
 {
 #if _WIN32
     return true;
@@ -573,18 +589,18 @@ inline bool settings::available()
 #endif
 }
 
-inline void settings::verbose(bool value)
+PFD_INLINE void settings::verbose(bool value)
 {
     settings().flags(flag::is_verbose) = value;
 }
 
-inline void settings::rescan()
+PFD_INLINE void settings::rescan()
 {
     settings(/* resync = */ true);
 }
 
 // Check whether a program is present using “which”.
-inline bool settings::check_program(std::string const &program)
+PFD_INLINE bool settings::check_program(std::string const &program)
 {
 #if _WIN32
     (void)program;
@@ -601,7 +617,7 @@ inline bool settings::check_program(std::string const &program)
 #endif
 }
 
-inline bool settings::is_osascript() const
+PFD_INLINE bool settings::is_osascript() const
 {
 #if __APPLE__
     return true;
@@ -610,31 +626,31 @@ inline bool settings::is_osascript() const
 #endif
 }
 
-inline bool settings::is_zenity() const
+PFD_INLINE bool settings::is_zenity() const
 {
     return flags(flag::has_zenity) ||
            flags(flag::has_matedialog) ||
            flags(flag::has_qarma);
 }
 
-inline bool settings::is_kdialog() const
+PFD_INLINE bool settings::is_kdialog() const
 {
     return flags(flag::has_kdialog);
 }
 
-inline bool const &settings::flags(flag in_flag) const
+PFD_INLINE bool const &settings::flags(flag in_flag) const
 {
     static bool flags[size_t(flag::max_flag)];
     return flags[size_t(in_flag)];
 }
 
-inline bool &settings::flags(flag in_flag)
+PFD_INLINE bool &settings::flags(flag in_flag)
 {
     return const_cast<bool &>(static_cast<settings const *>(this)->flags(in_flag));
 }
 
 // path implementation
-inline std::string path::home()
+PFD_INLINE std::string path::home()
 {
 #if _WIN32
     // First try the USERPROFILE environment variable
@@ -676,7 +692,7 @@ inline std::string path::home()
     return "/";
 }
 
-inline std::string path::separator()
+PFD_INLINE std::string path::separator()
 {
 #if _WIN32
     return "\\";
@@ -687,7 +703,7 @@ inline std::string path::separator()
 
 // executor implementation
 
-inline std::string internal::executor::result(int *exit_code /* = nullptr */)
+PFD_INLINE std::string internal::executor::result(int *exit_code /* = nullptr */)
 {
     stop();
     if (exit_code)
@@ -695,7 +711,7 @@ inline std::string internal::executor::result(int *exit_code /* = nullptr */)
     return m_stdout;
 }
 
-inline bool internal::executor::kill()
+PFD_INLINE bool internal::executor::kill()
 {
 #if _WIN32
     if (m_future.valid())
@@ -722,7 +738,7 @@ inline bool internal::executor::kill()
 }
 
 #if _WIN32
-inline BOOL CALLBACK internal::executor::enum_windows_callback(HWND hwnd, LPARAM lParam)
+PFD_INLINE BOOL CALLBACK internal::executor::enum_windows_callback(HWND hwnd, LPARAM lParam)
 {
     auto that = (executor *)lParam;
 
@@ -735,7 +751,7 @@ inline BOOL CALLBACK internal::executor::enum_windows_callback(HWND hwnd, LPARAM
 #endif
 
 #if _WIN32
-inline void internal::executor::start_func(std::function<std::string(int *)> const &fun)
+PFD_INLINE void internal::executor::start_func(std::function<std::string(int *)> const &fun)
 {
     stop();
 
@@ -755,13 +771,13 @@ inline void internal::executor::start_func(std::function<std::string(int *)> con
 }
 
 #elif __EMSCRIPTEN__
-inline void internal::executor::start(int exit_code)
+PFD_INLINE void internal::executor::start(int exit_code)
 {
     m_exit_code = exit_code;
 }
 
 #else
-inline void internal::executor::start_process(std::vector<std::string> const &command)
+PFD_INLINE void internal::executor::start_process(std::vector<std::string> const &command)
 {
     stop();
     m_stdout.clear();
@@ -806,12 +822,12 @@ inline void internal::executor::start_process(std::vector<std::string> const &co
 }
 #endif
 
-inline internal::executor::~executor()
+PFD_INLINE internal::executor::~executor()
 {
     stop();
 }
 
-inline bool internal::executor::ready(int timeout /* = default_wait_timeout */)
+PFD_INLINE bool internal::executor::ready(int timeout /* = default_wait_timeout */)
 {
     if (!m_running)
         return true;
@@ -869,7 +885,7 @@ inline bool internal::executor::ready(int timeout /* = default_wait_timeout */)
     return true;
 }
 
-inline void internal::executor::stop()
+PFD_INLINE void internal::executor::stop()
 {
     // Loop until the user closes the dialog
     while (!ready())
@@ -879,11 +895,11 @@ inline void internal::executor::stop()
 // dll implementation
 
 #if _WIN32
-inline internal::platform::dll::dll(std::string const &name)
+PFD_INLINE internal::platform::dll::dll(std::string const &name)
   : handle(::LoadLibraryA(name.c_str()))
 {}
 
-inline internal::platform::dll::~dll()
+PFD_INLINE internal::platform::dll::~dll()
 {
     if (handle)
         ::FreeLibrary(handle);
@@ -893,7 +909,7 @@ inline internal::platform::dll::~dll()
 // ole32_dll implementation
 
 #if _WIN32
-inline internal::platform::ole32_dll::ole32_dll()
+PFD_INLINE internal::platform::ole32_dll::ole32_dll()
     : dll("ole32.dll")
 {
     // Use COINIT_MULTITHREADED because COINIT_APARTMENTTHREADED causes crashes.
@@ -902,13 +918,13 @@ inline internal::platform::ole32_dll::ole32_dll()
     m_state = coinit(nullptr, COINIT_MULTITHREADED);
 }
 
-inline internal::platform::ole32_dll::~ole32_dll()
+PFD_INLINE internal::platform::ole32_dll::~ole32_dll()
 {
     if (is_initialized())
         proc<void WINAPI ()>(*this, "CoUninitialize")();
 }
 
-inline bool internal::platform::ole32_dll::is_initialized()
+PFD_INLINE bool internal::platform::ole32_dll::is_initialized()
 {
     return m_state == S_OK || m_state == S_FALSE;
 }
@@ -917,7 +933,7 @@ inline bool internal::platform::ole32_dll::is_initialized()
 // new_style_context implementation
 
 #if _WIN32
-inline internal::platform::new_style_context::new_style_context()
+PFD_INLINE internal::platform::new_style_context::new_style_context()
 {
     // Only create one activation context for the whole app lifetime.
     static HANDLE hctx = create();
@@ -926,12 +942,12 @@ inline internal::platform::new_style_context::new_style_context()
         ActivateActCtx(hctx, &m_cookie);
 }
 
-inline internal::platform::new_style_context::~new_style_context()
+PFD_INLINE internal::platform::new_style_context::~new_style_context()
 {
     DeactivateActCtx(0, m_cookie);
 }
 
-inline HANDLE internal::platform::new_style_context::create()
+PFD_INLINE HANDLE internal::platform::new_style_context::create()
 {
     // This “hack” seems to be necessary for this code to work on windows XP.
     // Without it, dialogs do not show and close immediately. GetError()
@@ -962,22 +978,22 @@ inline HANDLE internal::platform::new_style_context::create()
 
 // dialog implementation
 
-inline bool internal::dialog::ready(int timeout /* = default_wait_timeout */) const
+PFD_INLINE bool internal::dialog::ready(int timeout /* = default_wait_timeout */) const
 {
     return m_async->ready(timeout);
 }
 
-inline bool internal::dialog::kill() const
+PFD_INLINE bool internal::dialog::kill() const
 {
     return m_async->kill();
 }
 
-inline internal::dialog::dialog()
+PFD_INLINE internal::dialog::dialog()
   : m_async(std::make_shared<executor>())
 {
 }
 
-inline std::vector<std::string> internal::dialog::desktop_helper() const
+PFD_INLINE std::vector<std::string> internal::dialog::desktop_helper() const
 {
 #if __APPLE__
     return { "osascript" };
@@ -990,7 +1006,7 @@ inline std::vector<std::string> internal::dialog::desktop_helper() const
 #endif
 }
 
-inline std::string internal::dialog::buttons_to_name(choice _choice)
+PFD_INLINE std::string internal::dialog::buttons_to_name(choice _choice)
 {
     switch (_choice)
     {
@@ -1003,7 +1019,7 @@ inline std::string internal::dialog::buttons_to_name(choice _choice)
     }
 }
 
-inline std::string internal::dialog::get_icon_name(icon _icon)
+PFD_INLINE std::string internal::dialog::get_icon_name(icon _icon)
 {
     switch (_icon)
     {
@@ -1021,7 +1037,7 @@ inline std::string internal::dialog::get_icon_name(icon _icon)
 }
 
 // This is only used for debugging purposes
-inline std::ostream& operator <<(std::ostream &s, std::vector<std::string> const &v)
+PFD_INLINE std::ostream& operator <<(std::ostream &s, std::vector<std::string> const &v)
 {
     int not_first = 0;
     for (auto &e : v)
@@ -1033,7 +1049,7 @@ inline std::ostream& operator <<(std::ostream &s, std::vector<std::string> const
 // FIXME: we should probably get rid of newlines!
 // FIXME: the \" sequence seems unsafe, too!
 // XXX: this is no longer used but I would like to keep it around just in case
-inline std::string internal::dialog::powershell_quote(std::string const &str) const
+PFD_INLINE std::string internal::dialog::powershell_quote(std::string const &str) const
 {
     return "'" + std::regex_replace(str, std::regex("['\"]"), "$&$&") + "'";
 }
@@ -1041,21 +1057,21 @@ inline std::string internal::dialog::powershell_quote(std::string const &str) co
 // Properly quote a string for osascript: replace \ or " with \\ or \"
 // XXX: this also used to replace ' with \' when popen was used, but it would be
 // smarter to do shell_quote(osascript_quote(...)) if this is needed again.
-inline std::string internal::dialog::osascript_quote(std::string const &str) const
+PFD_INLINE std::string internal::dialog::osascript_quote(std::string const &str) const
 {
     return "\"" + std::regex_replace(str, std::regex("[\\\\\"]"), "\\$&") + "\"";
 }
 
 // Properly quote a string for the shell: just replace ' with '\''
 // XXX: this is no longer used but I would like to keep it around just in case
-inline std::string internal::dialog::shell_quote(std::string const &str) const
+PFD_INLINE std::string internal::dialog::shell_quote(std::string const &str) const
 {
     return "'" + std::regex_replace(str, std::regex("'"), "'\\''") + "'";
 }
 
 // file_dialog implementation
 
-inline internal::file_dialog::file_dialog(type in_type,
+PFD_INLINE internal::file_dialog::file_dialog(type in_type,
             std::string const &title,
             std::string const &default_path /* = "" */,
             std::vector<std::string> const &filters /* = {} */,
@@ -1356,7 +1372,7 @@ inline internal::file_dialog::file_dialog(type in_type,
 #endif
 }
 
-inline std::string internal::file_dialog::string_result()
+PFD_INLINE std::string internal::file_dialog::string_result()
 {
 #if _WIN32
     return m_async->result();
@@ -1370,7 +1386,7 @@ inline std::string internal::file_dialog::string_result()
 #endif
 }
 
-inline std::vector<std::string> internal::file_dialog::vector_result()
+PFD_INLINE std::vector<std::string> internal::file_dialog::vector_result()
 {
 #if _WIN32
     m_async->result();
@@ -1393,7 +1409,7 @@ inline std::vector<std::string> internal::file_dialog::vector_result()
 
 #if _WIN32
 // Use a static function to pass as BFFCALLBACK for legacy folder select
-inline int CALLBACK internal::file_dialog::bffcallback(HWND hwnd, UINT uMsg,
+PFD_INLINE int CALLBACK internal::file_dialog::bffcallback(HWND hwnd, UINT uMsg,
                                                        LPARAM, LPARAM pData)
 {
     auto inst = (file_dialog *)pData;
@@ -1407,7 +1423,7 @@ inline int CALLBACK internal::file_dialog::bffcallback(HWND hwnd, UINT uMsg,
 }
 
 #if PFD_HAS_IFILEDIALOG
-inline std::string internal::file_dialog::select_folder_vista(IFileDialog *ifd, bool force_path)
+PFD_INLINE std::string internal::file_dialog::select_folder_vista(IFileDialog *ifd, bool force_path)
 {
     std::string result;
 
@@ -1484,7 +1500,7 @@ inline std::string internal::file_dialog::select_folder_vista(IFileDialog *ifd, 
 
 // notify implementation
 
-inline notify::notify(std::string const &title,
+PFD_INLINE notify::notify(std::string const &title,
                       std::string const &message,
                       icon _icon /* = icon::info */)
 {
@@ -1593,7 +1609,7 @@ inline notify::notify(std::string const &title,
 
 // message implementation
 
-inline message::message(std::string const &title,
+PFD_INLINE message::message(std::string const &title,
                         std::string const &text,
                         choice _choice /* = choice::ok_cancel */,
                         icon _icon /* = icon::info */)
@@ -1795,7 +1811,7 @@ inline message::message(std::string const &title,
 #endif
 }
 
-inline button message::result()
+PFD_INLINE button message::result()
 {
     int exit_code;
     auto ret = m_async->result(&exit_code);
@@ -1822,7 +1838,7 @@ inline button message::result()
 
 // open_file implementation
 
-inline open_file::open_file(std::string const &title,
+PFD_INLINE open_file::open_file(std::string const &title,
                             std::string const &default_path /* = "" */,
                             std::vector<std::string> const &filters /* = { "All Files", "*" } */,
                             opt options /* = opt::none */)
@@ -1830,7 +1846,7 @@ inline open_file::open_file(std::string const &title,
 {
 }
 
-inline open_file::open_file(std::string const &title,
+PFD_INLINE open_file::open_file(std::string const &title,
                             std::string const &default_path,
                             std::vector<std::string> const &filters,
                             bool allow_multiselect)
@@ -1839,14 +1855,14 @@ inline open_file::open_file(std::string const &title,
 {
 }
 
-inline std::vector<std::string> open_file::result()
+PFD_INLINE std::vector<std::string> open_file::result()
 {
     return vector_result();
 }
 
 // save_file implementation
 
-inline save_file::save_file(std::string const &title,
+PFD_INLINE save_file::save_file(std::string const &title,
                             std::string const &default_path /* = "" */,
                             std::vector<std::string> const &filters /* = { "All Files", "*" } */,
                             opt options /* = opt::none */)
@@ -1854,7 +1870,7 @@ inline save_file::save_file(std::string const &title,
 {
 }
 
-inline save_file::save_file(std::string const &title,
+PFD_INLINE save_file::save_file(std::string const &title,
                             std::string const &default_path,
                             std::vector<std::string> const &filters,
                             bool confirm_overwrite)
@@ -1863,21 +1879,21 @@ inline save_file::save_file(std::string const &title,
 {
 }
 
-inline std::string save_file::result()
+PFD_INLINE std::string save_file::result()
 {
     return string_result();
 }
 
 // select_folder implementation
 
-inline select_folder::select_folder(std::string const &title,
+PFD_INLINE select_folder::select_folder(std::string const &title,
                                     std::string const &default_path /* = "" */,
                                     opt options /* = opt::none */)
   : file_dialog(type::folder, title, default_path, {}, options)
 {
 }
 
-inline std::string select_folder::result()
+PFD_INLINE std::string select_folder::result()
 {
     return string_result();
 }
