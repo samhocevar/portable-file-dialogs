@@ -118,3 +118,17 @@ This is probably only useful for debugging purposes.
 
 Calling `pfd::settings::verbose(true)` may help debug the library. It will output debug information
 to `std::cout` about some operations being performed.
+
+### Building as a static library using CMake
+
+```cpp
+set(PFD_DIR "path_to_portable_file_dialogs")
+set(PFD_STATIC_LIB ON CACHE BOOL "" FORCE)
+add_subdirectory(${PFD_DIR} SYSTEM)
+
+include_directories(SYSTEM path_to_portable_file_dialogs)
+target_link_libraries(Project PUBLIC portable-file-dialogs)
+target_compile_definitions(Project PRIVATE PFD_STATIC)
+```
+
+In static library mode you only need to include the header without any extra defines and the added bonus of less OS bloat in your project

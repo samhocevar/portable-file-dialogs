@@ -3,7 +3,7 @@
 A free C++11 file dialog library.
 
 -   works on Windows, Mac OS X, Linux
--   **single-header**, no extra library dependencies
+-   **single-header**, no extra library dependencies (can also be built as a static library if needed)
 -   **synchronous *or* asynchronous** (does not block the rest of your program!)
 -   **cancelable** (kill asynchronous dialogues without user interaction)
 -   **secure** (immune to shell-quote vulnerabilities)
