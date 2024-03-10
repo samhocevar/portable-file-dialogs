@@ -1181,7 +1181,9 @@ inline internal::file_dialog::file_dialog(type in_type,
         {
             if (options & opt::multiselect)
                 ofn.Flags |= OFN_ALLOWMULTISELECT;
-            ofn.Flags |= OFN_PATHMUSTEXIST;
+			if (in_type == type::open)
+				ofn.Flags |= OFN_FILEMUSTEXIST;
+			ofn.Flags |= OFN_PATHMUSTEXIST;
 
             dll::proc<BOOL WINAPI (LPOPENFILENAMEW)> get_open_file_name(comdlg32, "GetOpenFileNameW");
             if (get_open_file_name(&ofn) == 0)
