@@ -1184,6 +1184,7 @@ inline internal::file_dialog::file_dialog(type in_type,
 			if (in_type == type::open)
 				ofn.Flags |= OFN_FILEMUSTEXIST;
 			ofn.Flags |= OFN_PATHMUSTEXIST;
+			ofn.Flags |= OFN_HIDEREADONLY;
 
             dll::proc<BOOL WINAPI (LPOPENFILENAMEW)> get_open_file_name(comdlg32, "GetOpenFileNameW");
             if (get_open_file_name(&ofn) == 0)
