@@ -432,6 +432,15 @@ namespace internal
 {
 
 #if _WIN32
+static inline HWND get_window_handle(){
+    // Get current Window
+	//
+	// GetActiveWindow() sometimes returns null, in that case use the
+    // foreground window
+    HWND hwndOwner = GetActiveWindow();
+    return hwndOwner ? hwndOwner :GetForegroundWindow();
+}
+
 static inline std::wstring str2wstr(std::string const &str)
 {
     int len = MultiByteToWideChar(CP_UTF8, 0, str.c_str(), (int)str.size(), nullptr, 0);
@@ -1132,7 +1141,7 @@ inline internal::file_dialog::file_dialog(type in_type,
         OPENFILENAMEW ofn;
         memset(&ofn, 0, sizeof(ofn));
         ofn.lStructSize = sizeof(OPENFILENAMEW);
-        ofn.hwndOwner = GetActiveWindow();
+        ofn.hwndOwner = internal::get_window_handle();
 
         ofn.lpstrFilter = wfilter_list.c_str();
 
@@ -1459,7 +1468,7 @@ inline std::string internal::file_dialog::select_folder_vista(IFileDialog *ifd, 
     ifd->SetOptions(FOS_PICKFOLDERS | FOS_FORCEFILESYSTEM);
     ifd->SetTitle(m_wtitle.c_str());
 
-    hr = ifd->Show(GetActiveWindow());
+    hr = ifd->Show(internal::get_window_handle());
     if (SUCCEEDED(hr))
     {
         IShellItem* item;
@@ -1649,7 +1658,7 @@ inline message::message(std::string const &title,
         auto wtitle = internal::str2wstr(title);
         // Apply new visual style (required for all Windows versions)
         new_style_context ctx;
-        *exit_code = MessageBoxW(GetActiveWindow(), wtext.c_str(), wtitle.c_str(), style);
+        *exit_code = MessageBoxW(internal::get_window_handle(), wtext.c_str(), wtitle.c_str(), style);
         return "";
     });
 
