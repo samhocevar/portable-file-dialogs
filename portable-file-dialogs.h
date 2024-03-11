@@ -1790,6 +1790,8 @@ inline message::message(std::string const &title,
             if (_choice == choice::yes_no || _choice == choice::yes_no_cancel)
             {
                 m_mappings[0] = button::yes;
+                m_mappings[1] = button::no;
+                m_mappings[2] = button::cancel;
                 m_mappings[256] = button::no;
             }
         }
