@@ -1789,29 +1789,59 @@ inline message::message(std::string const &title,
         }
         else
         {
+            // Set icon
             std::string flag = "--";
             if (_icon == icon::warning || _icon == icon::error)
                 flag += "warning";
+
+            // Set buttons
             flag += "yesno";
-            if (_choice == choice::yes_no_cancel)
-                flag += "cancel";
+            if (_choice == choice::yes_no_cancel ||
+                _choice == choice::abort_retry_ignore)
+              flag += "cancel";
             command.push_back(flag);
+
+            command.push_back(text);
+            command.push_back("--title");
+            command.push_back(title);
+
+            if (_choice == choice::ok_cancel)
+            {
+                command.insert(command.end(), {"--yes-label", "OK"});
+                command.insert(command.end(), {"--no-label", "Cancel"});
+
+                m_mappings[0] = button::ok;
+                m_mappings[1] = button::cancel;
+            }
+
+            if (_choice == choice::retry_cancel)
+            {
+                 command.insert(command.end(), {"--yes-label", "Retry"});
+                 command.insert(command.end(), {"--no-label", "Cancel"});
+
+                 m_mappings[0] = button::retry;
+                 m_mappings[1] = button::cancel;
+            }
+
+            if (_choice == choice::abort_retry_ignore)
+            {
+                 command.insert(command.end(), {"--yes-label", "Abort"});
+                 command.insert(command.end(), {"--no-label", "Retry"});
+                 command.insert(command.end(), {"--cancel-label", "Ignore"});
+
+                 m_mappings[0] = button::abort;
+                 m_mappings[1] = button::retry;
+                 m_mappings[2] = button::ignore;
+            }
+
             if (_choice == choice::yes_no || _choice == choice::yes_no_cancel)
             {
                 m_mappings[0] = button::yes;
                 m_mappings[1] = button::no;
                 m_mappings[2] = button::cancel;
-                m_mappings[256] = button::no;
             }
         }
 
-        command.push_back(text);
-        command.push_back("--title");
-        command.push_back(title);
-
-        // Must be after the above part
-        if (_choice == choice::ok_cancel)
-            command.insert(command.end(), { "--yes-label", "OK", "--no-label", "Cancel" });
     }
 
     if (flags(flag::is_verbose))
