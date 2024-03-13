@@ -432,6 +432,15 @@ namespace internal
 {
 
 #if _WIN32
+static inline HWND get_window_handle(){
+    // Get current Window
+	//
+	// GetActiveWindow() sometimes returns null, in that case use the
+    // foreground window
+    HWND hwndOwner = GetActiveWindow();
+    return hwndOwner ? hwndOwner :GetForegroundWindow();
+}
+
 static inline std::wstring str2wstr(std::string const &str)
 {
     int len = MultiByteToWideChar(CP_UTF8, 0, str.c_str(), (int)str.size(), nullptr, 0);
@@ -1132,7 +1141,7 @@ inline internal::file_dialog::file_dialog(type in_type,
         OPENFILENAMEW ofn;
         memset(&ofn, 0, sizeof(ofn));
         ofn.lStructSize = sizeof(OPENFILENAMEW);
-        ofn.hwndOwner = GetActiveWindow();
+        ofn.hwndOwner = internal::get_window_handle();
 
         ofn.lpstrFilter = wfilter_list.c_str();
 
@@ -1166,6 +1175,9 @@ inline internal::file_dialog::file_dialog(type in_type,
 
         if (in_type == type::save)
         {
+            auto wextension = std::wstring(64, L'\0');
+            ofn.lpstrDefExt = (LPWSTR)wextension.data();
+
             if (!(options & opt::force_overwrite))
                 ofn.Flags |= OFN_OVERWRITEPROMPT;
 
@@ -1178,7 +1190,10 @@ inline internal::file_dialog::file_dialog(type in_type,
         {
             if (options & opt::multiselect)
                 ofn.Flags |= OFN_ALLOWMULTISELECT;
-            ofn.Flags |= OFN_PATHMUSTEXIST;
+			if (in_type == type::open)
+				ofn.Flags |= OFN_FILEMUSTEXIST;
+			ofn.Flags |= OFN_PATHMUSTEXIST;
+			ofn.Flags |= OFN_HIDEREADONLY;
 
             dll::proc<BOOL WINAPI (LPOPENFILENAMEW)> get_open_file_name(comdlg32, "GetOpenFileNameW");
             if (get_open_file_name(&ofn) == 0)
@@ -1234,11 +1249,20 @@ inline internal::file_dialog::file_dialog(type in_type,
 
         if (default_path.size())
         {
-            if (in_type == type::folder || is_directory(default_path))
-                script += " default location ";
+            if (in_type == type::save && !is_directory(default_path) && default_path.find("/") != std::string::npos)
+            {
+                std::size_t last_slash = default_path.find_last_of("/");
+                script += " default location " + osascript_quote(default_path.substr(0, last_slash));
+                script += " default name " + osascript_quote(default_path.substr(last_slash + 1, default_path.length()));
+            }
             else
-                script += " default name ";
-            script += osascript_quote(default_path);
+            {
+                if (in_type == type::folder || is_directory(default_path))
+                    script += " default location ";
+                else
+                    script += " default name ";
+                script += osascript_quote(default_path);
+            }
         }
 
         script += " with prompt " + osascript_quote(title);
@@ -1444,7 +1468,7 @@ inline std::string internal::file_dialog::select_folder_vista(IFileDialog *ifd, 
     ifd->SetOptions(FOS_PICKFOLDERS | FOS_FORCEFILESYSTEM);
     ifd->SetTitle(m_wtitle.c_str());
 
-    hr = ifd->Show(GetActiveWindow());
+    hr = ifd->Show(internal::get_window_handle());
     if (SUCCEEDED(hr))
     {
         IShellItem* item;
@@ -1634,7 +1658,7 @@ inline message::message(std::string const &title,
         auto wtitle = internal::str2wstr(title);
         // Apply new visual style (required for all Windows versions)
         new_style_context ctx;
-        *exit_code = MessageBoxW(GetActiveWindow(), wtext.c_str(), wtitle.c_str(), style);
+        *exit_code = MessageBoxW(internal::get_window_handle(), wtext.c_str(), wtitle.c_str(), style);
         return "";
     });
 
@@ -1765,27 +1789,59 @@ inline message::message(std::string const &title,
         }
         else
         {
+            // Set icon
             std::string flag = "--";
             if (_icon == icon::warning || _icon == icon::error)
                 flag += "warning";
+
+            // Set buttons
             flag += "yesno";
-            if (_choice == choice::yes_no_cancel)
-                flag += "cancel";
+            if (_choice == choice::yes_no_cancel ||
+                _choice == choice::abort_retry_ignore)
+              flag += "cancel";
             command.push_back(flag);
+
+            command.push_back(text);
+            command.push_back("--title");
+            command.push_back(title);
+
+            if (_choice == choice::ok_cancel)
+            {
+                command.insert(command.end(), {"--yes-label", "OK"});
+                command.insert(command.end(), {"--no-label", "Cancel"});
+
+                m_mappings[0] = button::ok;
+                m_mappings[1] = button::cancel;
+            }
+
+            if (_choice == choice::retry_cancel)
+            {
+                 command.insert(command.end(), {"--yes-label", "Retry"});
+                 command.insert(command.end(), {"--no-label", "Cancel"});
+
+                 m_mappings[0] = button::retry;
+                 m_mappings[1] = button::cancel;
+            }
+
+            if (_choice == choice::abort_retry_ignore)
+            {
+                 command.insert(command.end(), {"--yes-label", "Abort"});
+                 command.insert(command.end(), {"--no-label", "Retry"});
+                 command.insert(command.end(), {"--cancel-label", "Ignore"});
+
+                 m_mappings[0] = button::abort;
+                 m_mappings[1] = button::retry;
+                 m_mappings[2] = button::ignore;
+            }
+
             if (_choice == choice::yes_no || _choice == choice::yes_no_cancel)
             {
                 m_mappings[0] = button::yes;
-                m_mappings[256] = button::no;
+                m_mappings[1] = button::no;
+                m_mappings[2] = button::cancel;
             }
         }
 
-        command.push_back(text);
-        command.push_back("--title");
-        command.push_back(title);
-
-        // Must be after the above part
-        if (_choice == choice::ok_cancel)
-            command.insert(command.end(), { "--yes-label", "OK", "--no-label", "Cancel" });
     }
 
     if (flags(flag::is_verbose))
