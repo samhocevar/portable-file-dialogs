@@ -1,4 +1,4 @@
-## File Open API
+## File Save API
 
 The `pfd::save_file` class handles file saving dialogs. It can be provided a title, a starting
 directory and/or pre-selected file, an optional filter for recognised file types, and an optional
